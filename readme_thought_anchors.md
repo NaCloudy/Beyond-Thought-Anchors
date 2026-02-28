@@ -250,12 +250,20 @@ python analyze_rollouts.py \
 
 ### 步骤3: 句子到句子归因 (`step_attribution.py`)
 
-计算每对句子 (i→j) 之间的因果重要性。
+计算每对句子 (i→j) 之间的因果重要性。详细原理见下方 [附录A](#附录astep_attributionpy-详解)。
 
 ```bash
 python step_attribution.py \
-    --rollouts_dir "math-rollouts/deepseek-r1-distill-qwen-14b/temperature_0.6_top_p_0.95/correct_base_solution" \
-    --output_dir "analysis/step_attribution"
+    -ad "math_rollouts/deepseek-r1-distill-qwen-14b/temperature_0.6_top_p_0.95" \
+    -od "analysis/step_attribution" \
+    -st 0.8 \           # 语义相似度阈值
+    -co                  # 仅分析正确基线解
+    # 可选参数：
+    # -mc 50             # 最大chunk数
+    # -mp 10             # 最大问题数
+    # -ip "0,5,10"       # 仅分析指定问题
+    # -ex "SC,PS"        # 排除 Self Checking 和 Problem Setup 类别
+    # -nt 15             # 仅展示重要性最高的15个句子
 ```
 
 ### 步骤4: 生成图表 (`plots.py`)
@@ -300,3 +308,134 @@ dataset = load_dataset("uzaymacar/math-rollouts")
 ### 5.4 `pkld` 缓存装饰器
 
 代码库中大量使用 `@pkld` 装饰器自动缓存函数结果到磁盘，避免重复的 API 调用和模型推理。参见 `whitebox-analyses/README_on_pkld_decorator.md`。
+
+---
+
+## 附录A：`step_attribution.py` 详解
+
+### A.1 文件定位与目标
+
+`step_attribution.py` 是黑盒分析流程中的 **步骤3**，在 `analyze_rollouts.py` 计算出每个句子的单维重要性分数之后，进一步计算**句子与句子之间的因果关系矩阵**——即"句子 i 对句子 j 的出现有多大影响"。
+
+> 和步骤2的区别：步骤2回答"哪个句子重要"，步骤3回答"**谁影响了谁**"。
+
+### A.2 核心算法原理
+
+对于一条包含 $n$ 个句子的推理链，脚本计算一个 $n \times n$ 的上三角重要性矩阵 $M$，其中 $M[i,j]$（$j > i$）表示**句子 i 对句子 j 的因果重要性**。
+
+**计算 $M[i,j]$ 的流程**：
+
+```
+对于每一对 (i, j)，其中 j > i：
+
+1. 收集"保留句子 i"的 rollout：
+   - 从 chunk_{i+1}/ 加载（从句子 i+1 处开始重采样 → 句子 i 被保留）
+
+2. 收集"移除句子 i"的 rollout：
+   - 从 chunk_{i}/ 加载（从句子 i 处开始重采样 → 句子 i 被移除）
+
+3. 在每组 rollout 中，用语义相似度寻找"句子 j 的对应物"：
+   - 将句子 j 的 embedding 与 rollout 中所有句子的 embedding 计算余弦相似度
+   - 找到每个 rollout 中与句子 j 最匹配的句子（相似度 ≥ 阈值，默认 0.8）
+
+4. 计算匹配率差异：
+   M[i,j] = match_rate(保留i) - match_rate(移除i)
+```
+
+**直觉解释**：如果保留句子 i 时，下游 rollout 有 80% 概率生成类似句子 j 的内容，而移除句子 i 后只有 30%，则 $M[i,j] = 0.5$，说明句子 i 的存在强烈促进了句子 j 的出现。
+
+### A.3 代码结构与关键函数
+
+```
+step_attribution.py (993 行)
+│
+├── 数据加载
+│   ├── load_problem()              # 加载 problem.json
+│   ├── load_base_solution()        # 加载 base_solution.json
+│   ├── load_chunks()               # 加载 chunks_labeled.json（带标签的句子）
+│   └── load_chunk_rollouts()       # 加载 chunk_N/solutions.json（N个rollout）
+│
+├── 语义匹配（核心）
+│   ├── extract_steps_from_rollout()           # 将 rollout 文本分割成句子列表
+│   ├── compute_embedding_similarity()         # 计算两段文本的余弦相似度
+│   └── find_best_matches_fully_batched()      # 批量匹配：在所有rollout中找句子j的最佳对应
+│       └── 使用 SentenceTransformer('all-MiniLM-L6-v2') 编码
+│       └── sklearn.cosine_similarity 计算相似度
+│       └── 超过阈值(默认0.8)才算"匹配成功"
+│
+├── 重要性矩阵计算
+│   ├── process_chunk_pair()                   # 计算单个 (i,j) 对的重要性（支持多进程）
+│   └── compute_step_importance_matrix()       # 计算完整 n×n 矩阵（带缓存）
+│       └── 预加载所有 rollout + 预计算所有 embedding（避免重复IO和推理）
+│       └── 向量化计算 cosine_similarity（高效批处理）
+│       └── 缓存结果到 .npz 文件
+│
+├── 句子筛选与过滤
+│   ├── get_function_tag_prefix()              # 提取句子类别缩写（如 AC, PG, UM）
+│   ├── get_category_from_abbreviation()       # 缩写 → 完整类别名映射
+│   ├── filter_chunks_by_excluded_tags()       # 按类别过滤句子
+│   ├── calculate_sentence_importance_scores() # 计算综合重要性 = 出度 + 入度
+│   └── select_top_sentences()                 # 选取重要性最高的N个句子
+│
+├── 可视化输出
+│   ├── plot_step_importance_matrix()          # 热力图（RdBu色系，上三角遮蔽）
+│   ├── outgoing_importance 柱状图             # 每个句子对下游的平均影响
+│   └── incoming_importance 柱状图             # 每个句子受上游的平均影响
+│
+├── 辅助函数
+│   ├── get_problem_dirs()                     # 扫描目录，筛选数据完整的problem
+│   └── analyze_step_attribution()             # 主调度: 遍历问题 → 计算矩阵 → 画图 → 存JSON
+│
+└── main()                                     # CLI入口，解析参数并启动分析
+```
+
+### A.4 输入依赖
+
+脚本需要步骤1和步骤2的产出：
+
+| 输入文件                           | 来源                   | 说明                              |
+| ---------------------------------- | ---------------------- | --------------------------------- |
+| `problem_N/problem.json`           | `generate_rollouts.py` | 原始数学问题                      |
+| `problem_N/base_solution.json`     | `generate_rollouts.py` | 基线推理解答                      |
+| `problem_N/chunks_labeled.json`    | `analyze_rollouts.py`  | 带标签的句子列表                  |
+| `problem_N/chunk_K/solutions.json` | `generate_rollouts.py` | 在第K个句子处截断后的100次rollout |
+
+### A.5 输出文件
+
+```
+analysis/step_attribution/{model_name}/
+├── correct_base_solution/
+│   └── problem_N/
+│       ├── base_solution.json           # 复制的基线解答
+│       ├── chunk_texts.json             # 句子列表
+│       ├── step_importance.json         # 每个句子对下游的详细影响分数
+│       ├── summary.json                 # 汇总统计（最有影响力/最受影响的句子）
+│       ├── cache/
+│       │   └── step_importance_matrix_t0.8.npz  # 缓存的numpy矩阵
+│       └── plots/
+│           ├── step_importance_matrix.png   # n×n 热力图
+│           ├── outgoing_importance.png      # 出度柱状图
+│           └── incoming_importance.png      # 入度柱状图
+└── incorrect_base_solution/
+    └── ...（同上）
+```
+
+### A.6 关键参数说明
+
+| 参数                             | 默认值                                         | 说明                                 |
+| -------------------------------- | ---------------------------------------------- | ------------------------------------ |
+| `-ad` / `--analysis_dir`         | `math_rollouts/.../temperature_0.6_top_p_0.95` | rollout 数据目录                     |
+| `-od` / `--output_dir`           | `analysis/step_attribution`                    | 输出目录                             |
+| `-st` / `--similarity_threshold` | `0.8`                                          | 语义相似度阈值。越高越严格，匹配越少 |
+| `-mc` / `--max_chunks`           | `None` (不限)                                  | 每个问题最多分析多少个句子           |
+| `-mp` / `--max_problems`         | `None` (不限)                                  | 最多分析多少个问题                   |
+| `-co` / `--correct_only`         | `False` (分析incorrect)                        | 是否仅分析正确基线解                 |
+| `-ex` / `--exclude_tags`         | `None`                                         | 排除的类别缩写，如 `"SC,PS,FAE"`     |
+| `-nt` / `--num_top_sentences`    | `None` (全部)                                  | 仅展示重要性最高的N个句子            |
+
+### A.7 性能优化设计
+
+1. **预计算所有 embedding**：一次性编码所有 rollout 的所有句子，避免重复调用 SentenceTransformer
+2. **向量化 cosine_similarity**：利用 sklearn 的矩阵运算，而非逐对计算
+3. **NPZ 缓存**：计算结果持久化到 `.npz` 文件，重复运行时直接加载
+4. **预加载所有 rollout**：一次性从磁盘读取所有 `solutions.json`，避免在内层循环中反复IO
