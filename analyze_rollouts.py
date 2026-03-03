@@ -4072,15 +4072,18 @@ def main():
             # Check if the results have the forced importance metric
             forced_importance_exists = False
 
-            for result_file in correct_output_dir.glob("**/chunks_labeled.json"):
+            for result_file in correct_output_dir.glob("**/analysis_results.json"):
                 try:
                     with open(result_file, "r", encoding="utf-8") as f:
-                        labeled_chunks = json.load(f)
+                        analysis_results = json.load(f)
 
-                    # Check if at least one chunk has the forced importance metric
-                    for chunk in labeled_chunks:
-                        if ("forced_importance_accuracy" in chunk or "forced_importance_kl" in chunk):
-                            forced_importance_exists = True
+                    # analysis_results 顶层是 problem 列表；forced metric 在每个 problem 的 labeled_chunks 里
+                    for result in analysis_results:
+                        for chunk in result.get("labeled_chunks", []):
+                            if ("forced_importance_accuracy" in chunk or "forced_importance_kl" in chunk):
+                                forced_importance_exists = True
+                                break
+                        if forced_importance_exists:
                             break
 
                     if forced_importance_exists:
