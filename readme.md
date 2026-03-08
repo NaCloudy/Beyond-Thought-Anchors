@@ -1,9 +1,11 @@
 # Beyond Thought Anchors
+**Consistency and Causal Analysis of LLM Reasoning Steps**
 
 > **CS639 Deep Learning for NLP — Course Project**
+> 
 > Extending *Thought Anchors: Which LLM Reasoning Steps Matter?* from math reasoning to logic reasoning.
 
----
+
 
 ## Overview
 
@@ -17,7 +19,7 @@ This project takes the **Thought Anchors** framework (Bogdan et al., 2025) and a
 2. Which functional categories (plan generation, backtracking, etc.) are most anchor-prone in logic vs. math?
 3. Does the original 8-tag taxonomy transfer to logic CoT, and what is the minimal adaptation needed?
 
----
+
 
 ## What We Add Beyond the Original Repo
 
@@ -28,7 +30,7 @@ This project takes the **Thought Anchors** framework (Bogdan et al., 2025) and a
 | **Pilot data & analysis** | 15,220 rollouts across Math + Logic; taxonomy coverage results reported |
 | **End-to-end pipeline** | Data preparation → rollout generation → attribution analysis → report-ready artifacts |
 
----
+
 
 ## Methods
 
@@ -42,7 +44,7 @@ We compare three attribution methods from the original paper on both domains:
 
 The primary pipeline for this project is the **black-box** method, which requires only API access.
 
----
+
 
 ## Repository Structure
 
@@ -73,7 +75,7 @@ Beyond-Thought-Anchors/
 └── misc-experiments/               # Auxiliary scripts and notebooks
 ```
 
----
+
 
 ## Pilot Results
 
@@ -106,7 +108,7 @@ Each CoT sentence is auto-labeled by GPT-4 into one of:
 | `PS` | Problem Setup |
 | `FAE` | Final Answer Emission |
 
----
+
 
 ## Setup
 
@@ -133,7 +135,7 @@ OPENAI_API_KEY=...
 
 > Local inference is also supported via `--provider Local` (requires GPU). DeepSeek-R1-Distill-Qwen-14B needs ~28 GB VRAM full precision or ~8 GB with 4-bit quantization (`-q`).
 
----
+
 
 ## Quick Start (Black-box Pipeline)
 
@@ -197,7 +199,7 @@ Produces an n×n causal importance matrix and in/out-degree charts — answering
 python plots.py -m qwen-14b --normalize
 ```
 
----
+
 
 ## Taxonomy Transfer Analysis (Our EDA Module)
 
@@ -214,7 +216,7 @@ python taxonomy_transfer_analysis.py \
   --output_json "taxonomy_transfer_report.json"
 ```
 
----
+
 
 ## Planned Final-Scale Experiments
 
@@ -223,14 +225,14 @@ python taxonomy_transfer_analysis.py \
 - Compare all three attribution methods (black-box, receiver-head, causal masking) on Math vs. Logic
 - Analyze anchor distributions by functional tag across domains
 
----
+
 
 ## References
 
 - Bogdan et al. (2025). *Thought Anchors: Which LLM Reasoning Steps Matter?* https://arxiv.org/abs/2506.19143
 - Han et al. (2022). *FOLIO: Natural Language Reasoning with First-Order Logic* https://arxiv.org/abs/2209.00840
 
----
+
 
 ## Course Context
 
