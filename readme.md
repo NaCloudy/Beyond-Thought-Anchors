@@ -25,6 +25,7 @@ This project takes the **Thought Anchors** framework (Bogdan et al., 2025) and a
 
 | Contribution | Description |
 |---|---|
+| **Data Generation** | Select 20 challenging problems from Logic domains; generat ~3,000 rollouts per problem with actual counts varying by reasoning length |
 | **Cross-domain extension** | Apply all three Thought Anchors methods to FOLIO (logic) under settings aligned with the math experiments |
 | **`taxonomy_transfer_analysis.py`** | New Exploratory Data Analysis(EDA) module: closed-set coverage rates, OOV diagnostics, and logic-proxy checks for the 8-tag taxonomy |
 | **Pilot data & analysis** | 15,220 rollouts across Math + Logic; taxonomy coverage results reported |
@@ -38,7 +39,6 @@ We compare three attribution methods from the original paper on both domains:
 
 | Method | Type | How it works |
 |---|---|---|
-| **Data Generation** | Select 20 challenging problems from Logic domains; generat ~3,000 rollouts per problem with actual counts varying by reasoning length |
 | **Black-box Resampling** | Black-box | Mask a CoT sentence, resample completions, measure accuracy / KL-divergence change |
 | **Receiver Head Analysis** | White-box | Identify attention heads that act as "receivers" — aggregating cross-sentence information |
 | **Causal Masking** | White-box | Directly suppress attention at specific layers, compare logit distributions |
