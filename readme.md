@@ -26,7 +26,7 @@ This project takes the **Thought Anchors** framework (Bogdan et al., 2025) and a
 | Contribution | Description |
 |---|---|
 | **Cross-domain extension** | Apply all three Thought Anchors methods to FOLIO (logic) under settings aligned with the math experiments |
-| **`taxonomy_transfer_analysis.py`** | New EDA module: closed-set coverage rates, OOV diagnostics, and logic-proxy checks for the 8-tag taxonomy |
+| **`taxonomy_transfer_analysis.py`** | New Exploratory Data Analysis(EDA) module: closed-set coverage rates, OOV diagnostics, and logic-proxy checks for the 8-tag taxonomy |
 | **Pilot data & analysis** | 15,220 rollouts across Math + Logic; taxonomy coverage results reported |
 | **End-to-end pipeline** | Data preparation → rollout generation → attribution analysis → report-ready artifacts |
 
@@ -38,12 +38,12 @@ We compare three attribution methods from the original paper on both domains:
 
 | Method | Type | How it works |
 |---|---|---|
+| **Data Generation** | Select 20 challenging problems from Logic domains; generat ~3,000 rollouts per problem with actual counts varying by reasoning length |
 | **Black-box Resampling** | Black-box | Mask a CoT sentence, resample completions, measure accuracy / KL-divergence change |
 | **Receiver Head Analysis** | White-box | Identify attention heads that act as "receivers" — aggregating cross-sentence information |
 | **Causal Masking** | White-box | Directly suppress attention at specific layers, compare logit distributions |
 
 The primary pipeline for this project is the **black-box** method, which requires only API access.
-
 
 
 ## Repository Structure
@@ -199,8 +199,6 @@ Produces an n×n causal importance matrix and in/out-degree charts — answering
 python plots.py -m qwen-14b --normalize
 ```
 
-
-
 ## Taxonomy Transfer Analysis (Our EDA Module)
 
 `taxonomy_transfer_analysis.py` reports:
@@ -220,11 +218,11 @@ python taxonomy_transfer_analysis.py \
 
 ## Planned Final-Scale Experiments
 
-- **20–30 FOLIO problems** (logic) × correct / incorrect / forced-answer CoTs
+- **20–30 FOLIO problems** (logic) × correct / incorrect CoTs
 - **~100 rollouts per chunk**
 - Compare all three attribution methods (black-box, receiver-head, causal masking) on Math vs. Logic
 - Analyze anchor distributions by functional tag across domains
-
+- Analyze cross methods consistency
 
 
 ## References
