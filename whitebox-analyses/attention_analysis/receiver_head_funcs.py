@@ -63,9 +63,7 @@ def get_problem_vert_scores(
 
 
 def get_3d_ar_kurtosis(layer_head_vert_scores: np.ndarray) -> np.ndarray:
-    layer_head_kurts = stats.kurtosis(
-        layer_head_vert_scores, axis=2, fisher=True, bias=True, nan_policy="omit"
-    )  # NaNs from the proximity ignorance
+    layer_head_kurts = stats.kurtosis(layer_head_vert_scores, axis=2, fisher=True, bias=True, nan_policy="omit")  # NaNs from the proximity ignorance
     return layer_head_kurts
 
 
@@ -102,10 +100,7 @@ def get_all_heads_vert_scores(
     return layer_head_vert_scores
 
 
-def get_top_k_layer_head_kurts(
-    layer_head_kurts_mean: np.ndarray,
-    top_k: int = 20
-) -> np.ndarray:
+def get_top_k_layer_head_kurts(layer_head_kurts_mean: np.ndarray, top_k: int = 20) -> np.ndarray:
     kurts_mean_flat = layer_head_kurts_mean.flatten()
 
     valid_indices = np.where(~np.isnan(kurts_mean_flat))[0]  # indices where it's not NaN
@@ -155,13 +150,21 @@ def get_top_k_receiver_heads(
 def get_model_rollouts_root(model_name: str = "qwen-14b") -> str:
     if "qwen" in model_name:
         dir_root = os.path.join(
-            "math-rollouts",
+            ####################################
+            # "math-rollouts",
+            ####################################
+            "gpqa-rollouts",
+            ####################################
             "deepseek-r1-distill-qwen-14b",
             "temperature_0.6_top_p_0.95",
         )
     elif "llama" in model_name:
         dir_root = os.path.join(
-            "math-rollouts",
+            ####################################
+            # "math-rollouts",
+            ####################################
+            "gpqa-rollouts",
+            ####################################
             "deepseek-r1-distill-llama-8b",
             "temperature_0.6_top_p_0.95",
         )
@@ -171,11 +174,7 @@ def get_model_rollouts_root(model_name: str = "qwen-14b") -> str:
 
 
 @pkld
-def get_problem_text_sentences(
-    problem_num: Union[int, str],
-    is_correct: bool,
-    model_name: str = "qwen-14b"
-) -> Tuple[str, List[str]]:
+def get_problem_text_sentences(problem_num: Union[int, str], is_correct: bool, model_name: str = "qwen-14b") -> Tuple[str, List[str]]:
     dir_root = get_model_rollouts_root(model_name)
     if is_correct:
         ci = "correct_base_solution"
@@ -219,7 +218,7 @@ def get_all_problems_vert_scores(
         dir_ci = os.path.join(dir_root, ci)
         problems = os.listdir(dir_ci)
         for idx_problem, problem in enumerate(problems):
-            if problem == 'problem_3935': # 13k tokens long, too intense on the RAM/VRAM
+            if problem == 'problem_3935':  # 13k tokens long, too intense on the RAM/VRAM
                 continue
             text, sentences_w_spacing = get_problem_text_sentences(problem, is_correct, model_name)
 
@@ -242,10 +241,7 @@ def get_all_problems_vert_scores(
     return response_layer_head_verts, response_idxs
 
 
-def get_receiver_head_scores(
-    top_k_layer_head_kurts: np.ndarray,
-    layer_head_verts: np.ndarray
-) -> np.ndarray:
+def get_receiver_head_scores(top_k_layer_head_kurts: np.ndarray, layer_head_verts: np.ndarray) -> np.ndarray:
     rec_head_scores = []
     for layer, head in top_k_layer_head_kurts:
         rec_head_scores.append(layer_head_verts[layer, head, :])

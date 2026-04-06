@@ -1,3 +1,4 @@
+.gitignore
 *.pkl
 *.json
 *.zip
@@ -11,3 +12,11 @@ math-rollouts/
 math-rollouts_test/
 .cursorindexingignore
 .specstory
+
+backup.txt
+debug.txt
+
+CLAUDE.md
+
+reports/
+paper/

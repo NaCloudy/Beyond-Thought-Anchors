@@ -15,9 +15,7 @@ from tqdm import tqdm
 from scipy import stats
 
 
-def get_attention_matrix(
-    text: str, model_name: str, layer: int, head: int, device_map: str = "auto"
-) -> np.ndarray:
+def get_attention_matrix(text: str, model_name: str, layer: int, head: int, device_map: str = "auto") -> np.ndarray:
     """
     Get the attention matrix for a specific layer and head for given text.
     Note: This doesn't cache raw matrices as they can be very large.
@@ -94,15 +92,11 @@ def get_cache_path(
         layer = "_".join(map(str, layer))
     filename = f"{layer}_{head}{suffix}.npy"
 
-    Path(os.path.join(cache_dir, model_name, text_id, filename)).parent.mkdir(
-        parents=True, exist_ok=True
-    )
+    Path(os.path.join(cache_dir, model_name, text_id, filename)).parent.mkdir(parents=True, exist_ok=True)
     return os.path.join(cache_dir, model_name, text_id, filename)
 
 
-def get_sentence_token_boundaries(
-    text: str, sentences: List[str], model_name: str
-) -> List[Tuple[int, int]]:
+def get_sentence_token_boundaries(text: str, sentences: List[str], model_name: str) -> List[Tuple[int, int]]:
     """
     Get exact token boundaries for sentences within the full text.
     This accounts for tokenization effects where tokens may be different
@@ -178,9 +172,7 @@ def get_sentence_token_boundaries(
     return token_boundaries
 
 
-def _compute_averaged_matrix(
-    matrix: np.ndarray, sentence_boundaries: List[Tuple[int, int]]
-) -> np.ndarray:
+def _compute_averaged_matrix(matrix: np.ndarray, sentence_boundaries: List[Tuple[int, int]]) -> np.ndarray:
     """
     Helper function to compute averaged matrix from raw matrix and boundaries.
 
@@ -272,37 +264,49 @@ def compute_all_attention_matrices(
     if verbose:
         print(f"Computing attention matrices for {text_id}...")
 
-
     # Check text length and adjust device if needed
     tokens = get_raw_tokens(text, model_name)
 
     # if os.name == "nt":  # This was related to debugging and testing small models.
     #     if verbose:
-    #         print("Running on Windows, using CPU") 
+    #         print("Running on Windows, using CPU")
     #     device_map = "cpu"
 
-    if (
-        os.name == "nt"
-    ):  # This was related to debugging and testing small models.
-        if verbose or True:
-            print(f"Running on Windows, using CPU ({len(tokens)=})")
+    ##########################
+
+    # if (
+    #     os.name == "nt"
+    # ):  # This was related to debugging and testing small models.
+    #     if verbose or True:
+    #         print(f"Running on Windows, using CPU ({len(tokens)=})")
+    #     device_map = "cpu"
+    #     import torch
+    #     torch.backends.cudnn.benchmark = False  # For CPU
+    #     torch.set_num_threads(os.cpu_count())  # Max CPU threads
+    # elif len(tokens) > 3000:
+    #     if verbose or True:
+    #         print(f"Using CPU for long sequence ({len(tokens)=}):")
+    #     device_map = "cpu"
+    #     import torch
+    #     torch.backends.cudnn.benchmark = False  # For CPU
+    #     torch.set_num_threads(os.cpu_count())  # Max CPU threads
+
+    ############################
+
+    if os.name == "nt" and len(text_tokens) > 3000:
         device_map = "cpu"
-        import torch
-        torch.backends.cudnn.benchmark = False  # For CPU
-        torch.set_num_threads(os.cpu_count())  # Max CPU threads
-    elif len(tokens) > 3000:
-        if verbose or True:
-            print(f"Using CPU for long sequence ({len(tokens)=}):")
-        device_map = "cpu"
-        import torch
-        torch.backends.cudnn.benchmark = False  # For CPU
-        torch.set_num_threads(os.cpu_count())  # Max CPU threads
+
+    #############################
 
     result = analyze_text(
         text,
         model_name=model_name,
         verbose=verbose,
-        float32=True,#model_name == "qwen-15b",
+        ##################
+        #float32=True,#model_name == "qwen-15b",
+        ##################
+        float32=(model_name == "qwen-15b"),
+        ##################
         attn_layers=None,
         return_logits=False,
         device_map=device_map,
@@ -431,9 +435,7 @@ def get_vertical_scores(
     avg_mat = avg_mat.copy()
     avg_mat[trius] = np.nan
 
-    trils = np.triu_indices_from(
-        avg_mat, k=-proximity_ignore + 1
-    )  # has no effect if not subtracting avg
+    trils = np.triu_indices_from(avg_mat, k=-proximity_ignore + 1)  # has no effect if not subtracting avg
     avg_mat[trils] = np.nan
 
     if control_depth:
@@ -444,12 +446,12 @@ def get_vertical_scores(
     vert_scores = []
 
     for i in range(n):
-        vert_lines = avg_mat[i + proximity_ignore :, i]
+        vert_lines = avg_mat[i + proximity_ignore:, i]
 
         if score_type == "mean":
             if len(vert_lines) == 0:
                 # prevents "RuntimeWarning: Mean of empty slice"
-                vert_score = np.nan 
+                vert_score = np.nan
             else:
                 vert_score = np.nanmean(vert_lines)
         elif score_type == "median":

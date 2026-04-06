@@ -51,7 +51,7 @@ def extract_attention_and_logits(
     logits = None
     hooks_applied = False
     attention_weights = {}
-    
+
     try:
         with torch.no_grad():
             # Determine if we need autocast for gpt-oss models with bfloat16
@@ -73,7 +73,7 @@ def extract_attention_and_logits(
             with autocast_context:
                 if not use_autocast:
                     warnings.filterwarnings("ignore", message=".*does not support `output_attentions=True`.*")
-                    
+
                 if token_range_to_mask and mask_layers:
                     apply_qwen_attn_mask_hooks(model, token_range_to_mask, layer_2_heads_suppress=mask_layers)
                     hooks_applied = True
@@ -147,7 +147,7 @@ def get_token_logits_for_word(logits: np.ndarray, word: str, model_name: str = "
         Logits for the word token
     """
     tokenizer = get_tokenizer(model_name)
-    
+
     tokens = tokenizer.encode(word, add_special_tokens=False)
     assert len(tokens) == 1, f"Word {word} has {len(tokens)} tokens"
     word_logits = logits[0, :, tokens[0]]
@@ -198,7 +198,7 @@ def analyze_text(
     if verbose:
         print(f"Analyzing text: {text}")
     else:
-        print(f"Analyzing text: {text[:100]}...")
+        print(f"Analyzing text: {text[:20]}...")
 
     t_st = time.time()
 
@@ -218,14 +218,26 @@ def analyze_text(
 
     t_end = time.time()
     num_tokens = len(result["token_texts"])
-    print(f"Time taken: {t_end - t_st:.2f} seconds (for {num_tokens} tokens)")
+    if verbose:
+        print(f"Time taken: {t_end - t_st:.2f} seconds (for {num_tokens} tokens)")
 
     if attn_layers and any(layer in result["attention_weights"] for layer in attn_layers):
         layer = next(layer for layer in attn_layers if layer in result["attention_weights"])
         attention_data = result["attention_weights"][layer]
-        num_nans = np.isnan(attention_data).sum()
-        p_nan = num_nans / attention_data.size
-        assert ~np.isnan(attention_data).any(), f"Attention has NaNs{attention_data.shape=} ({p_nan=:.1%})"
+
+        ######################################
+
+        # num_nans = np.isnan(attention_data).sum()
+        # p_nan = num_nans / attention_data.size
+        # assert ~np.isnan(attention_data).any(), f"Attention has NaNs{attention_data.shape=} ({p_nan=:.1%})"
+
+        ########################################
+
+        num_nans = torch.isnan(attention_data).sum().item()
+        p_nan = num_nans / attention_data.numel()
+        assert not torch.isnan(attention_data).any(), f"Attention has NaNs{attention_data.shape=} ({p_nan=:.1%})"
+
+        #######################################
 
     print(f"\t*** Analysis complete! ({float32=}) ***")
 

@@ -50,10 +50,17 @@ def get_suppression_KL_matrix(
     text_tokens = get_raw_tokens(text, model_name)
     device_map = "auto"
 
+    #############################################
     # Use CPU for very long sequences on Windows
+    # if len(text_tokens) > 4200 and os.name == "nt":
+    #     device_map = "cpu"
+    #     print(f"Using CPU for long sequence ({problem_num}): {len(text_tokens)=}")
+
+    ##############################################
+
     if len(text_tokens) > 4200 and os.name == "nt":
         device_map = "cpu"
-        print(f"Using CPU for long sequence ({problem_num}): {len(text_tokens)=}")
+    ##############################################
 
     kw = {
         "text": text,
@@ -76,8 +83,8 @@ def get_suppression_KL_matrix(
     sentence_sentence_scores = np.full((len(sentence2ranges), len(sentence2ranges)), np.nan)
 
     for (
-        sentence_num,
-        token_range,
+            sentence_num,
+            token_range,
     ) in tqdm(sentence2ranges.items(), desc=f"Examining sentence2sentence ({problem_num})"):
         kw["token_range_to_mask"] = list(token_range)
         kw["layers_to_mask"] = layers_to_mask
@@ -93,9 +100,13 @@ def get_suppression_KL_matrix(
             b_idxs, b_logits = decompress_logits_for_position(baseline_data, i)
             s_idxs, s_logits = decompress_logits_for_position(s_data, i)
 
-            KL_sparse = calculate_kl_divergence_sparse(
-                (b_idxs, b_logits), (s_idxs, s_logits), temperature=0.6, epsilon=1e-9
-            )
+            ############################################
+            # KL_sparse = calculate_kl_divergence_sparse(
+            #     (b_idxs, b_logits), (s_idxs, s_logits), temperature=0.6, epsilon=1e-9
+            # )
+            ############################################
+            KL_sparse = calculate_kl_divergence_sparse((b_idxs, b_logits), (s_idxs, s_logits), temperature=0.6)
+            ##############################################
             # if norm_entropy:
 
             if take_log:
@@ -160,9 +171,7 @@ def calculate_kl_divergence_sparse(
         print("Warning: Invalid input data (None found). Cannot calculate KL divergence.")
         return np.nan
     if len(b_idxs) != len(b_logits) or len(s_idxs) != len(s_logits):
-        print(
-            "Warning: Mismatch between length of indices and logits. Cannot calculate KL divergence."
-        )
+        print("Warning: Mismatch between length of indices and logits. Cannot calculate KL divergence.")
         return np.nan
     # Allow empty arrays for one side? KL(P||0) is inf if P>0, KL(0||Q) is 0.
     # If both are empty, KL is 0 or NaN? Let's return 0 if both empty, NaN otherwise for now.
@@ -202,12 +211,7 @@ def calculate_kl_divergence_sparse(
     log_q = F.log_softmax(s_logits_tensor / temperature, dim=0)
 
     # Check for immediate issues after log_softmax
-    if (
-        torch.isinf(log_p).any()
-        or torch.isnan(log_p).any()
-        or torch.isinf(log_q).any()
-        or torch.isnan(log_q).any()
-    ):
+    if (torch.isinf(log_p).any() or torch.isnan(log_p).any() or torch.isinf(log_q).any() or torch.isnan(log_q).any()):
         print("Warning: Inf or NaN detected in log-probabilities. Inputs might be too extreme.")
         return np.nan
 
@@ -235,16 +239,19 @@ def calculate_kl_divergence_sparse(
 
     if kl_div_value < 0:
         if kl_div_value < -1e-6:  # Adjust tolerance if needed
-            print(
-                f"Warning: KL divergence significantly negative ({kl_div_value:.2e}). Clipping to 0.0. This might indicate an issue."
-            )
+            print(f"Warning: KL divergence significantly negative ({kl_div_value:.2e}). Clipping to 0.0. This might indicate an issue.")
         return 0.0
     else:
         return kl_div_value
 
 
 if __name__ == "__main__":
-    problem_num = 2238
+    ####################################
+    # problem_num = 2238
+    ####################################
+    problem_num = 0
+    ####################################
+
     model_name = "qwen-15b"
     is_correct = True  # Use correct solutions
 

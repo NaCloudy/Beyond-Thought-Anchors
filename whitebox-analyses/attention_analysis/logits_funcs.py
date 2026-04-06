@@ -4,13 +4,12 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 
+from tqdm import tqdm
 from pkld import pkld
 from pytorch_models import analyze_text
 
 
-def decompress_logits_for_position(
-    compressed_data: Dict[str, np.ndarray], position_index: int
-) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+def decompress_logits_for_position(compressed_data: Dict[str, np.ndarray], position_index: int) -> Optional[Tuple[np.ndarray, np.ndarray]]:
     """
     Decompresses the top-p indices and logits for a specific token position
     from the compressed data structure.
@@ -40,9 +39,7 @@ def decompress_logits_for_position(
     seq_len = len(offsets) - 1
 
     if not (0 <= position_index < seq_len):
-        print(
-            f"Error: position_index {position_index} is out of bounds for sequence length {seq_len}."
-        )
+        print(f"Error: position_index {position_index} is out of bounds for sequence length {seq_len}.")
         return None
 
     # Determine the slice boundaries from the offsets array
@@ -51,16 +48,10 @@ def decompress_logits_for_position(
 
     # Check if slice indices are valid (simple sanity check)
     if not (0 <= start_slice <= end_slice <= len(flat_indices)):
-        print(
-            f"Error: Invalid slice indices [{start_slice}:{end_slice}] derived from offsets for position {position_index}."
-        )
+        print(f"Error: Invalid slice indices [{start_slice}:{end_slice}] derived from offsets for position {position_index}.")
         return None
-    if end_slice - start_slice != len(
-        flat_logits[start_slice:end_slice]
-    ):  # Ensure length consistency
-        print(
-            f"Warning: Length mismatch between indices and logits slice for position {position_index}."
-        )
+    if end_slice - start_slice != len(flat_logits[start_slice:end_slice]):  # Ensure length consistency
+        print(f"Warning: Length mismatch between indices and logits slice for position {position_index}.")
         # Proceed cautiously, might indicate upstream issue
 
     # Extract the relevant slice
@@ -92,9 +83,7 @@ def compress_logits_top_p(logits: torch.Tensor, p: float = 0.999, max_k=100):
     """
     # Assuming logits has shape (1, seq_len, vocab_size)
     if logits.shape[0] != 1:
-        print(
-            f"Warning: Expected batch size 1 for logits, got {logits.shape[0]}. Using first batch element."
-        )
+        print(f"Warning: Expected batch size 1 for logits, got {logits.shape[0]}. Using first batch element.")
     logits = logits[0]  # Shape becomes (seq_len, vocab_size)
 
     if not isinstance(logits, torch.Tensor):
@@ -104,7 +93,9 @@ def compress_logits_top_p(logits: torch.Tensor, p: float = 0.999, max_k=100):
         logits = logits.cpu().to(torch.float32)
 
     seq_len, vocab_size = logits.shape
-    print(f"Processing logits shape: {logits.shape}")
+    #####################
+    # print(f"Processing logits shape: {logits.shape}")
+    #####################
 
     # Compute probabilities (use temperature if desired, T=1.0 otherwise)
     temperature = 0.6  # As used before, or make it a parameter
@@ -113,7 +104,9 @@ def compress_logits_top_p(logits: torch.Tensor, p: float = 0.999, max_k=100):
     # Sort probabilities (and associated logits) descending ONCE
     # This is memory intensive but required for top-p logic
     # Consider torch.topk if only top-k is needed and p=1, but top-p needs sorting.
-    print("Sorting probabilities...")
+    #####################
+    # print("Sorting probabilities...")
+    #####################
     sorted_probs, sorted_indices = torch.sort(probs, descending=True, dim=-1)
     # We only need sorted_logits for the top-k elements later, gather them efficiently
     # sorted_logits = torch.gather(logits, -1, sorted_indices) # Avoid gathering the whole thing yet
@@ -123,7 +116,9 @@ def compress_logits_top_p(logits: torch.Tensor, p: float = 0.999, max_k=100):
     cum_probs_retained_list = []
     offsets = [0]  # Start with offset 0
 
-    print(f"Iterating through {seq_len} positions for Top-p/Top-k selection...")
+    #####################
+    # print(f"Iterating through {seq_len} positions for Top-p/Top-k selection...")
+    #####################
     for i in tqdm(range(seq_len), desc="Compressing logits", leave=False):
         cum_probs = torch.cumsum(sorted_probs[i], dim=0)
         # Find minimal k such that cumulative probability >= p
@@ -155,19 +150,19 @@ def compress_logits_top_p(logits: torch.Tensor, p: float = 0.999, max_k=100):
         offsets.append(offsets[-1] + k)
 
     # Concatenate the lists into single large NumPy arrays
-    print("Concatenating results...")
-    flat_indices_np = (
-        np.concatenate(flat_indices_list) if flat_indices_list else np.array([], dtype=np.int32)
-    )
-    flat_logits_np = (
-        np.concatenate(flat_logits_list) if flat_logits_list else np.array([], dtype=np.float16)
-    )
+    #####################
+    # print("Concatenating results...")
+    #####################
+    flat_indices_np = (np.concatenate(flat_indices_list) if flat_indices_list else np.array([], dtype=np.int32))
+    flat_logits_np = (np.concatenate(flat_logits_list) if flat_logits_list else np.array([], dtype=np.float16))
     offsets_np = np.array(offsets, dtype=np.int32)
     cum_probs_retained_np = np.array(cum_probs_retained_list, dtype=np.float32)
 
-    print(
-        f"Compressed logits: Indices shape={flat_indices_np.shape}, Logits shape={flat_logits_np.shape}, Offsets shape={offsets_np.shape}"
-    )
+    #####################
+    # print(
+    #     f"Compressed logits: Indices shape={flat_indices_np.shape}, Logits shape={flat_logits_np.shape}, Offsets shape={offsets_np.shape}"
+    # )
+    #####################
 
     # Cleanup intermediate large tensors explicitly if needed, though Python's GC should handle it
     del probs, sorted_probs, sorted_indices, cum_probs, top_k_indices, top_k_logits
@@ -198,7 +193,7 @@ def analyze_text_get_p_logits(
     device_map="auto",
 ):
     """Extract logits from model using the new pytorch_models structure."""
-    
+
     # Use the analyze_text wrapper function
     result = analyze_text(
         text=text,

@@ -5,9 +5,60 @@
 
 ---
 
+## What is a Thought Anchor?
+
+When a reasoning model solves a problem, it generates a long chain-of-thought (CoT) trace — hundreds of sentences of internal deliberation. The central question of the original paper is: **which of those sentences actually matter?**
+
+### The counterintuitive finding
+
+The naive answer is "computation sentences" (Active Computation — where the model does actual algebra or arithmetic). If you measure importance by *interrupting* the model mid-trace and forcing an immediate answer, computation steps look most important, because they're closest to the answer.
+
+But this confounds two things: *which sentence contains the answer* vs. *which sentence caused the model to find the correct answer*.
+
+The paper's key insight is that once a reasoning model has committed to a particular plan, the subsequent computations are **largely predetermined** — the model will reliably execute them. The real fork point is earlier: *which plan did the model adopt?*
+
+### What actually matters: Planning and Backtracking
+
+When importance is measured correctly — by **counterfactually resampling the entire subsequent chain** (regenerating all downstream steps, not just forcing the next token) — a different picture emerges:
+
+- **Plan Generation sentences** (e.g., *"Let me calculate the decimal value first and convert from there"*) have the highest counterfactual importance. They set the trajectory; once this sentence appears, the model reliably executes the chosen plan and reaches a specific answer.
+- **Uncertainty Management / Backtracking sentences** (e.g., *"Wait, I should double-check this"*) are the second most important. They are pivot points where the model abandons a failing approach and switches direction.
+- **Active Computation sentences** drop sharply in importance under this measure. They are executing a plan, not choosing one — if you remove them, the model generates equivalent computations anyway.
+
+These high-impact planning and backtracking sentences are the **thought anchors**: they anchor the trajectory of the entire subsequent reasoning.
+
+### The case study that illustrates it
+
+Problem: *"How many bits does 66666₁₆ have in base 2?"*
+
+The model initially plans to multiply 5 hex digits × 4 bits/digit = 20 bits. This plan is wrong (it ignores leading zeros).
+
+- **Sentence 12** (Uncertainty Management): *"I should check if there's any leading zero affecting the bit count."* This sounds important — but resampling shows it actually *lowers* downstream accuracy. The check alone doesn't change the plan.
+- **Sentence 13** (Plan Generation): *"Let me calculate the decimal value of 66666₁₆ and convert from there."* This is the thought anchor. When sentence 13 appears, the model almost always reaches the correct answer (19 bits). When it's replaced with something else, accuracy collapses.
+
+The computation in sentences 14–40 (multiplying, converting, checking) just faithfully executes the plan set in sentence 13.
+
+### Three-way convergence
+
+Three independent methods all identify the same sentences as important:
+
+| Method | What it measures | Finding |
+|---|---|---|
+| **Black-box Resampling** | Counterfactual impact on final answer | PG and UM sentences rank highest |
+| **Receiver Head Analysis** | Which sentences specialized attention heads focus on | The same PG/UM sentences attract narrowly focused attention from all downstream tokens |
+| **Causal Masking** | Direct effect of masking a sentence on downstream token logits | PG/UM sentences create the strongest causal links to future sentences |
+
+The convergence across these three independent methods provides strong evidence that thought anchors are a real structural feature of LLM reasoning, not a measurement artifact.
+
+### Why it matters for interpretability
+
+Traditional interpretability looks at single forward passes (token-by-token activations). Thought anchor analysis operates at the **sentence level**, finding the coarse-grained decision structure of a reasoning trace — which steps set the agenda, which execute it, and which revise it. This level of abstraction is more useful for debugging reasoning failures: if a model gets a problem wrong, the error is usually traceable to a bad planning sentence, not to a downstream computation.
+
+---
+
 ## Overview
 
-Large reasoning models produce long chain-of-thought (CoT) traces before answering. Not every step matters equally — some "thought anchors" have an outsized causal influence on the rest of the reasoning chain.
+Large reasoning models produce long chain-of-thought (CoT) traces before answering. Not every step matters equally — thought anchors (planning and backtracking sentences) have an outsized causal influence over the entire subsequent reasoning trajectory.
 
 This project takes the **Thought Anchors** framework (Bogdan et al., 2025) and applies it to a new domain: **first-order logic reasoning** (FOLIO dataset), creating the first cross-domain comparison of thought anchors between math and logic. We also investigate whether the existing 8-tag function taxonomy transfers to logic CoT without modification.
 

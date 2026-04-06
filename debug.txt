@@ -1,0 +1,92 @@
+utils.py
+
+
+
+def sanity_check_sentences(sentences_w_spacing, dir_problem, text):
+    # Sanity check
+    # (the chunks.json removes "\n"also omits the final sentence of the CoT)
+    fp_sentences_json = os.path.join(dir_problem, "chunks.json")
+    with open(fp_sentences_json, "r") as f:
+        sentence_data = json.load(f)
+
+    sentences_og = sentence_data["chunks"]
+
+    ##################
+
+    # assert len(sentences_w_spacing) == len(sentences_og) - 1
+    # assert (
+    #     sentences_og[-2].strip()
+    #     in sentences_w_spacing[-1].replace("\n", " ").replace("  ", " ").strip()
+    # )
+    
+    ##################
+    
+    if len(sentences_w_spacing) == len(sentences_og) - 1:
+        # 原论文格式：chunks.json 末尾有哨兵句
+        assert (
+            sentences_og[-2].strip()
+            in sentences_w_spacing[-1].replace("\n", " ").replace("  ", " ").strip()
+        )
+    elif len(sentences_w_spacing) == len(sentences_og):
+        # 我们的数据格式：无哨兵句
+        assert (
+            sentences_og[-1].strip()
+            in sentences_w_spacing[-1].replace("\n", " ").replace("  ", " ").strip()
+        )
+    else:
+        raise AssertionError(
+            f"Sentence count mismatch: split={len(sentences_w_spacing)}, chunks.json={len(sentences_og)}"
+        )
+
+    ##################
+    for sentence in sentences_w_spacing:
+        assert sentence in text
+
+
+
+attn_funcs.py
+
+    ##########################
+
+    # if (
+    #     os.name == "nt"
+    # ):  # This was related to debugging and testing small models.
+    #     if verbose or True:
+    #         print(f"Running on Windows, using CPU ({len(tokens)=})")
+    #     device_map = "cpu"
+    #     import torch
+    #     torch.backends.cudnn.benchmark = False  # For CPU
+    #     torch.set_num_threads(os.cpu_count())  # Max CPU threads
+    # elif len(tokens) > 3000:
+    #     if verbose or True:
+    #         print(f"Using CPU for long sequence ({len(tokens)=}):")
+    #     device_map = "cpu"
+    #     import torch
+    #     torch.backends.cudnn.benchmark = False  # For CPU
+    #     torch.set_num_threads(os.cpu_count())  # Max CPU threads
+
+    ############################
+
+    if os.name == "nt" and len(text_tokens) > 3000:
+        device_map = "cpu"
+
+    #############################
+
+
+
+attn_supp
+
+
+    #############################################
+    # Use CPU for very long sequences on Windows
+    # if len(text_tokens) > 4200 and os.name == "nt":
+    #     device_map = "cpu"
+    #     print(f"Using CPU for long sequence ({problem_num}): {len(text_tokens)=}")
+    
+    ##############################################
+    
+    if len(text_tokens) > 4200 and os.name == "nt":
+        device_map = "cpu"
+
+
+    ##############################################
