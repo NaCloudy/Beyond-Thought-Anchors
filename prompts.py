@@ -136,7 +136,7 @@ CATEGORIES = {
 }
 
 DAG_PROMPT = """
-You are an expert in interpreting how language models solve math problems using multi-step reasoning. Your task is to analyze a Chain-of-Thought (CoT) reasoning trace, broken into discrete text chunks, and label each chunk with:
+You are an expert in interpreting how language models solve problems using multi-step reasoning. Your task is to analyze a Chain-of-Thought (CoT) reasoning trace, broken into discrete text chunks, and label each chunk with:
 
 1. **function_tags**: One or more labels that describe what this chunk is *doing* functionally in the reasoning process.
 
@@ -155,10 +155,10 @@ This annotation will be used to build a dependency graph and perform causal anal
     Stating or deciding on a plan of action (often meta-reasoning).
     
 3. `fact_retrieval`: 
-    Recalling facts, formulas, problem details (without immediate computation).
+    Recalling facts, formulas, definitions, or relevant knowledge (without immediate computation or derivation).
     
 4. `active_computation`: 
-    Performing algebra, calculations, manipulations toward the answer.
+    Performing calculations, logical deductions, applying formulas, or working through reasoning steps toward the answer.
     
 5. `result_consolidation`: 
     Aggregating intermediate results, summarizing, or preparing final answer.
@@ -167,10 +167,10 @@ This annotation will be used to build a dependency graph and perform causal anal
     Expressing confusion, re-evaluating, proposing alternative plans (includes backtracking).
     
 7. `final_answer_emission`: 
-    Explicit statement of the final boxed answer or earlier chunks that contain the final answer.
+    Explicit statement of the final answer or earlier chunks that contain the final answer.
     
 8. `self_checking`: 
-    Verifying previous steps, Pythagorean checking, re-confirmations.
+    Verifying previous steps, re-confirmations, consistency checks.
 
 9. `unknown`: 
     Use only if the chunk does not fit any of the above tags or is purely stylistic or semantic.
@@ -180,10 +180,9 @@ This annotation will be used to build a dependency graph and perform causal anal
 ### depends_on Instructions:
 
 For each chunk, include a list of earlier chunk indices that the reasoning in this chunk *uses*. For example:
-- If Chunk 9 performs a computation based on a plan in Chunk 4 and a recalled rule in Chunk 5, then `depends_on: [4, 5]`
-- If Chunk 24 plugs in a final answer to verify correctness from Chunk 23, then `depends_on: [23]`
+- If Chunk 9 performs a deduction based on a plan in Chunk 4 and a recalled fact in Chunk 5, then `depends_on: [4, 5]`
+- If Chunk 24 verifies a conclusion from Chunk 23, then `depends_on: [23]`
 - If there's no clear dependency (e.g. a general plan or recall), use an empty list: `[]`
-- If Chunk 13 performs a computation based on information in Chunk 11, which in turn uses information from Chunk 7, then `depends_on: [11, 7]`
 
 Important Notes:
 - Make sure to include all dependencies for each chunk. 
@@ -229,7 +228,7 @@ Here's the expected format:
 }}
 ```
 
-Here is the math problem:
+Here is the problem:
 
 [PROBLEM]
 {problem_text}
