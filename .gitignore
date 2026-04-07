@@ -13,8 +13,11 @@ math-rollouts_test/
 .cursorindexingignore
 .specstory
 
+analysis/
+
 backup.txt
 debug.txt
+midway-pre.txt
 
 CLAUDE.md
 
