@@ -51,6 +51,22 @@ def extract_attention_and_logits(
     logits = None
     hooks_applied = False
     attention_weights = {}
+    attn_hook_handles = []
+
+    need_attentions = token_range_to_mask is None and (attn_layers is None or len(attn_layers) > 0)
+
+    # Hook-based attention capture: moves each layer's weights to CPU immediately
+    # and replaces GPU tensor with None, preventing VRAM accumulation across layers.
+    # This avoids OOM on long sequences where storing all layers at once (~50GB) exceeds VRAM.
+    def make_attn_hook(layer_idx):
+        def hook(module, args, output):
+            # output: (attn_output, attn_weights, ...) from self_attn
+            if output[1] is not None:
+                if attn_layers is None or layer_idx in attn_layers:
+                    attention_weights[layer_idx] = output[1].detach().cpu()
+                # Return None for attn_weights to free GPU memory immediately
+                return (output[0], None) + output[2:]
+        return hook
 
     try:
         with torch.no_grad():
@@ -78,24 +94,29 @@ def extract_attention_and_logits(
                     apply_qwen_attn_mask_hooks(model, token_range_to_mask, layer_2_heads_suppress=mask_layers)
                     hooks_applied = True
 
+                if need_attentions and hasattr(model, "model") and hasattr(model.model, "layers"):
+                    for layer_idx, layer in enumerate(model.model.layers):
+                        h = layer.self_attn.register_forward_hook(make_attn_hook(layer_idx))
+                        attn_hook_handles.append(h)
+
                 outputs = model(
                     input_ids=input_ids,
                     attention_mask=attention_mask,
-                    output_attentions=attn_layers is None or len(attn_layers) > 0,
+                    output_attentions=need_attentions and len(attn_hook_handles) == 0,
                     return_dict=True,
                     use_cache=False,
                     output_hidden_states=False,
                 )
 
-            if token_range_to_mask is None:
+            # Fallback: if hooks weren't registered, read from outputs.attentions
+            if need_attentions and len(attn_hook_handles) == 0:
                 if hasattr(outputs, "attentions") and outputs.attentions is not None:
-                    for layer_idx, attn_weights in enumerate(outputs.attentions):
+                    for layer_idx, attn_w in enumerate(outputs.attentions):
                         if attn_layers is not None and layer_idx not in attn_layers:
                             continue
-                        attention_weights[layer_idx] = attn_weights.detach().cpu()
-                else:
-                    if attn_layers is not None:
-                        print("Warning: Requested attention layers but 'outputs.attentions' not found or is None.")
+                        attention_weights[layer_idx] = attn_w.detach().cpu()
+                elif attn_layers is not None:
+                    print("Warning: Requested attention layers but 'outputs.attentions' not found or is None.")
 
             if return_logits and hasattr(outputs, "logits"):
                 logits = outputs.logits.detach().cpu()
@@ -109,6 +130,8 @@ def extract_attention_and_logits(
         traceback.print_exc()
 
     finally:
+        for h in attn_hook_handles:
+            h.remove()
         if hooks_applied:
             remove_qwen_attn_mask_hooks(model)
 

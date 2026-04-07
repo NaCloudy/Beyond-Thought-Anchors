@@ -4,7 +4,6 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 
-from tqdm import tqdm
 from pkld import pkld
 from pytorch_models import analyze_text
 
@@ -119,7 +118,7 @@ def compress_logits_top_p(logits: torch.Tensor, p: float = 0.999, max_k=100):
     #####################
     # print(f"Iterating through {seq_len} positions for Top-p/Top-k selection...")
     #####################
-    for i in tqdm(range(seq_len), desc="Compressing logits", leave=False):
+    for i in range(seq_len):
         cum_probs = torch.cumsum(sorted_probs[i], dim=0)
         # Find minimal k such that cumulative probability >= p
         # Use torch.searchsorted for potential efficiency

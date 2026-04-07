@@ -16,11 +16,13 @@ def get_kurt_matrix(
     model_name="qwen-14b",
     proximity_ignore=4,
     control_depth=False,
+    include_incorrect=False,
 ):
     resp_layer_head_verts, _ = get_all_problems_vert_scores(
         model_name=model_name,
         proximity_ignore=proximity_ignore,
         control_depth=control_depth,
+        include_incorrect=include_incorrect,
     )
 
     resp_layer_head_kurts = []

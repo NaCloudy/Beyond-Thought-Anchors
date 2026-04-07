@@ -151,7 +151,7 @@ if __name__ == "__main__":
     only_first = None  # Process all tokens in each sentence
     plot_sentences = False  # Set to True to generate plots for each sentence
     max_problems = None  # Set to a number to limit processing (e.g., 10 for testing)
-    include_incorrect = True  # Process both correct and incorrect solutions
+    include_incorrect = False  # Process correct solutions only
 
     # Process all problems
     results = process_all_problems_kl(

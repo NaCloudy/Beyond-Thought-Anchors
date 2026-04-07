@@ -17,11 +17,13 @@ def get_kurt_matrix(
     model_name="qwen-14b",
     proximity_ignore=4,
     control_depth=False,
+    include_incorrect=False,
 ):
     resp_layer_head_verts, _ = get_all_problems_vert_scores(
         model_name=model_name,
         proximity_ignore=proximity_ignore,
         control_depth=control_depth,
+        include_incorrect=include_incorrect,
     )
 
     resp_layer_head_kurts = []
@@ -60,6 +62,7 @@ if __name__ == "__main__":
         model_name=args.model_name,
         proximity_ignore=args.proximity_ignore,
         control_depth=args.control_depth,
+        include_incorrect=False,
     )
 
     top_k_layer_head = get_top_k_receiver_heads(
@@ -67,6 +70,7 @@ if __name__ == "__main__":
         top_k=args.top_k,
         proximity_ignore=args.proximity_ignore,
         control_depth=args.control_depth,
+        include_incorrect=False,
     )
 
     M_corrs = []

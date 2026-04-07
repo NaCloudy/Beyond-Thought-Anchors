@@ -164,6 +164,7 @@ def calculate_receiver_head_scores_for_problem(
     top_k: int = 16,
     proximity_ignore: int = 4,
     control_depth: bool = False,
+    include_incorrect: bool = False,
 ) -> np.ndarray:
     """
     Calculate receiver head scores for a single problem.
@@ -181,6 +182,7 @@ def calculate_receiver_head_scores_for_problem(
         top_k=top_k,
         proximity_ignore=proximity_ignore,
         control_depth=control_depth,
+        include_incorrect=include_incorrect,
     )
 
     # Calculate vertical scores for all heads for this problem
@@ -212,6 +214,7 @@ def generate_receiver_head_csvs(
     control_depth: bool = False,
     output_dir: str = "csvs",  # Output to outer csvs folder
     max_problems: Optional[int] = None,
+    include_incorrect: bool = False,
 ):
     """
     Generate CSV files with receiver head scores for all problems.
@@ -254,6 +257,7 @@ def generate_receiver_head_csvs(
                 top_k=top_k,
                 proximity_ignore=proximity_ignore,
                 control_depth=control_depth,
+                include_incorrect=include_incorrect,
             )
             labels = labels[:-1]
 
@@ -437,6 +441,11 @@ if __name__ == "__main__":
         default=None,
         help="Maximum number of problems to process (default: all)",
     )
+    parser.add_argument(
+        "--include-incorrect",
+        action="store_true",
+        help="Include incorrect solutions (default: correct only)",
+    )
 
     args = parser.parse_args()
 
@@ -449,6 +458,7 @@ if __name__ == "__main__":
         control_depth=args.control_depth,
         output_dir=args.output_dir,
         max_problems=args.max_problems,
+        include_incorrect=args.include_incorrect,
     )
 
     print(

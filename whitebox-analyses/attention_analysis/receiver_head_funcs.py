@@ -121,11 +121,13 @@ def get_top_k_receiver_heads(
     top_k: int = 20,
     proximity_ignore: int = 4,
     control_depth: bool = False,
+    include_incorrect: bool = True,
 ) -> np.ndarray:
     resp_layer_head_verts, _ = get_all_problems_vert_scores(
         model_name=model_name,
         proximity_ignore=proximity_ignore,
         control_depth=control_depth,
+        include_incorrect=include_incorrect,
     )
 
     resp_layer_head_kurts = []
@@ -201,11 +203,14 @@ def get_all_problems_vert_scores(
     model_name: str = "qwen-14b",
     proximity_ignore: int = 4,
     control_depth: bool = False,
+    include_incorrect: bool = True,
 ) -> Tuple[List[np.ndarray], List[Tuple[int, int]]]:
 
     dir_root = get_model_rollouts_root(model_name)
 
-    correct_incorrect = ["correct_base_solution", "incorrect_base_solution"]
+    correct_incorrect = ["correct_base_solution"]
+    if include_incorrect:
+        correct_incorrect.append("incorrect_base_solution")
 
     response_layer_head_verts = []
     response_idxs = []
@@ -216,6 +221,8 @@ def get_all_problems_vert_scores(
         else:
             is_correct = 1
         dir_ci = os.path.join(dir_root, ci)
+        if not os.path.exists(dir_ci):
+            continue
         problems = os.listdir(dir_ci)
         for idx_problem, problem in enumerate(problems):
             if problem == 'problem_3935':  # 13k tokens long, too intense on the RAM/VRAM
@@ -256,6 +263,7 @@ def get_all_receiver_head_scores(
     proximity_ignore: int = 4,
     control_depth: bool = False,
     top_k: int = 20,
+    include_incorrect: bool = True,
 ) -> Tuple[List[np.ndarray], List[Tuple[int, int]]]:
 
     print("Getting top k layer head kurts")
@@ -264,6 +272,7 @@ def get_all_receiver_head_scores(
         top_k=top_k,
         proximity_ignore=proximity_ignore,
         control_depth=control_depth,
+        include_incorrect=include_incorrect,
     )
     print("Getting all vert scores")
 
@@ -271,6 +280,7 @@ def get_all_receiver_head_scores(
         model_name=model_name,
         proximity_ignore=proximity_ignore,
         control_depth=control_depth,
+        include_incorrect=include_incorrect,
     )
 
     print("Getting rec scores")
