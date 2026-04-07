@@ -13,7 +13,14 @@ math-rollouts_test/
 .cursorindexingignore
 .specstory
 
+gpqa-rollouts/
+
 analysis/
+attn_cache/
+csvs/
+plots/
+kl_results/
+
 
 backup.txt
 debug.txt
