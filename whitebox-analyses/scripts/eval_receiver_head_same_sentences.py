@@ -11,6 +11,7 @@ from attention_analysis.receiver_head_funcs import (
     get_all_problems_vert_scores,
     get_top_k_receiver_heads,
 )
+from pytorch_models.model_config import model2layers_heads
 
 
 def get_kurt_matrix(
@@ -58,13 +59,16 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     
+    print("Loading vert scores for all problems (reads attn_cache/, may take a few minutes)...")
     resp_layer_head_verts, _ = get_all_problems_vert_scores(
         model_name=args.model_name,
         proximity_ignore=args.proximity_ignore,
         control_depth=args.control_depth,
         include_incorrect=False,
     )
+    print(f"Loaded {len(resp_layer_head_verts)} problems.")
 
+    print("Computing top-k receiver heads...")
     top_k_layer_head = get_top_k_receiver_heads(
         model_name=args.model_name,
         top_k=args.top_k,
@@ -72,6 +76,7 @@ if __name__ == "__main__":
         control_depth=args.control_depth,
         include_incorrect=False,
     )
+    print(f"Top-{args.top_k} heads: {top_k_layer_head.tolist()}")
 
     M_corrs = []
     for i in range(len(resp_layer_head_verts)):
@@ -89,8 +94,7 @@ if __name__ == "__main__":
     print(f'Overall mean correlation: {GM_corrs:.3f}')
     
     
-    num_layers = 48
-    num_heads = 40
+    num_layers, num_heads = model2layers_heads(args.model_name)
     all_heads = np.mgrid[0:num_layers, 0:num_heads].reshape(2, -1).T
     # Equivalent to: 
     # top_k_layer_head = []

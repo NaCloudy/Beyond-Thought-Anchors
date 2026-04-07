@@ -225,25 +225,17 @@ def process_problem_suppression(
 
     print(f"\nTop {plot_top_k} most impactful sentences:")
     for i, stats in enumerate(analysis["top_sentences"][:plot_top_k]):
-        print(
-            f"  {i+1}. Sentence {stats['sentence_idx']}: "
-            f"mean KL = {stats['mean_kl']:.3f}, "
-            f"affects {stats['num_affected']} sentences"
-        )
+        print(f"  {i+1}. Sentence {stats['sentence_idx']}: "
+              f"mean KL = {stats['mean_kl']:.3f}, "
+              f"affects {stats['num_affected']} sentences")
 
         # Plot this sentence's suppression effect
-        output_path = (
-            Path(output_dir)
-            / model_name
-            / f"problem_{problem_num}_{is_correct}"
-            / f"suppress_sent_{stats['sentence_idx']}.png"
-        )
+        output_path = (Path(output_dir) / model_name / f"problem_{problem_num}_{is_correct}" / f"suppress_sent_{stats['sentence_idx']}.png")
         plot_sentence_suppression_line(
             sentence_sentence_scores,
             stats["sentence_idx"],
             problem_num,
             is_correct,
-            model_name,
             output_path=output_path,
             show_plot=False,
         )
@@ -252,32 +244,54 @@ def process_problem_suppression(
 
 
 if __name__ == "__main__":
-    # Configuration
-    model_name = "qwen-15b"
-    problem_num = 4682  # Example problem
-    is_correct = True
-    plot_top_k = 3  # Plot top 3 most important sentences
+    import argparse
 
-    # Process single problem
-    analysis, kl_matrix = process_problem_suppression(
-        problem_num=problem_num,
-        is_correct=is_correct,
-        model_name=model_name,
-        plot_top_k=plot_top_k,
-        output_dir="plots/suppression_analysis",
-    )
+    parser = argparse.ArgumentParser(description="Plot suppression line for a problem")
+    parser.add_argument("--model-name", type=str, default="qwen-15b", help="Model name")
+    parser.add_argument("--problem-num", type=int, default=0, help="Problem number")
+    parser.add_argument("--correct", action="store_true", default=True, help="Use correct solution")
+    parser.add_argument("--plot-top-k", type=int, default=3, help="Number of top sentences to plot")
+    parser.add_argument("--kl-results-dir", type=str, default="kl_results", help="Directory with precomputed KL matrices")
+    parser.add_argument("--output-dir", type=str, default="plots/suppression_analysis", help="Output directory")
 
-    if analysis:
-        # You can also manually plot a specific sentence
-        sentence_num = 32  # Example: plot suppression of sentence 32
-        if kl_matrix is not None and sentence_num < kl_matrix.shape[0]:
-            output_path = f"plots/suppress_sentence_{problem_num}_{sentence_num}.png"
-            plot_sentence_suppression_line(
-                kl_matrix,
-                sentence_num,
-                problem_num,
-                is_correct,
-                model_name,
-                output_path=output_path,
-                show_plot=True,  # Show this plot
-            )
+    args = parser.parse_args()
+
+    correct_str = "correct" if args.correct else "incorrect"
+    precomputed_path = Path(args.kl_results_dir) / args.model_name / correct_str / f"problem_{args.problem_num}_kl.npy"
+    if precomputed_path.exists():
+        print(f"Loading precomputed KL matrix from {precomputed_path}")
+        kl_matrix = np.load(precomputed_path)
+    else:
+        print(f"No precomputed file at {precomputed_path}, running model inference...")
+        kl_matrix = get_suppression_KL_matrix(
+            problem_num=args.problem_num,
+            p_nucleus=0.9999,
+            model_name=args.model_name,
+            is_correct=args.correct,
+            take_log=True,
+        )
+
+    if kl_matrix is None:
+        print("Failed to get KL matrix.")
+        exit(1)
+
+    print(f"KL matrix shape: {kl_matrix.shape}")
+
+    analysis = analyze_sentence_importance(kl_matrix)
+
+    print(f"\nTop {args.plot_top_k} most impactful sentences:")
+    for i, stats in enumerate(analysis["top_sentences"][:args.plot_top_k]):
+        print(f"  {i+1}. Sentence {stats['sentence_idx']}: "
+              f"mean KL = {stats['mean_kl']:.3f}, "
+              f"affects {stats['num_affected']} sentences")
+        output_path = (Path(args.output_dir) / args.model_name
+                       / f"problem_{args.problem_num}_{args.correct}"
+                       / f"suppress_sent_{stats['sentence_idx']}.png")
+        plot_sentence_suppression_line(
+            kl_matrix,
+            stats["sentence_idx"],
+            args.problem_num,
+            args.correct,
+            output_path=str(output_path),
+            show_plot=False,
+        )

@@ -147,20 +147,28 @@ if __name__ == "__main__":
     parser.add_argument("--tick-interval", type=int, default=10, help="Interval between ticks")
     parser.add_argument("--normalize-rows", action="store_true", default=True, help="Normalize rows by subtracting mean")
     parser.add_argument("--transparent", action="store_true", default=True, help="Save with transparent background")
+    parser.add_argument("--kl-results-dir", type=str, default="kl_results", help="Directory with precomputed KL matrices")
     
     args = parser.parse_args()
     
     plt.rcParams["font.size"] = args.font_size
     plt.figure(figsize=tuple(args.figsize))
     
-    sentence_sentence_scores = get_suppression_KL_matrix(
-        problem_num=args.problem_num,
-        p_nucleus=args.p_nucleus,
-        model_name=args.model_name,
-        is_correct=args.correct,
-        only_first=args.only_first,
-        take_log=args.take_log,
-    )
+    correct_str = "correct" if args.correct else "incorrect"
+    precomputed_path = Path(args.kl_results_dir) / args.model_name / correct_str / f"problem_{args.problem_num}_kl.npy"
+    if precomputed_path.exists():
+        print(f"Loading precomputed KL matrix from {precomputed_path}")
+        sentence_sentence_scores = np.load(precomputed_path)
+    else:
+        print(f"No precomputed file found at {precomputed_path}, running model inference...")
+        sentence_sentence_scores = get_suppression_KL_matrix(
+            problem_num=args.problem_num,
+            p_nucleus=args.p_nucleus,
+            model_name=args.model_name,
+            is_correct=args.correct,
+            only_first=args.only_first,
+            take_log=args.take_log,
+        )
     
     sentence_sentence_scores[np.triu_indices_from(sentence_sentence_scores, k=0)] = np.nan
     
