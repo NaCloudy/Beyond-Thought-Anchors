@@ -22,10 +22,10 @@ csvs/
 plots/
 kl_results/
 
-
 backup.txt
 debug.txt
 midway-pre.txt
+docs/
 
 CLAUDE.md
 
