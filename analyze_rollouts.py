@@ -20,8 +20,7 @@ import multiprocessing as mp
 from functools import partial
 import scipy.stats as stats
 from matplotlib.lines import Line2D
-from google import genai
-from google.genai import types
+from openai import OpenAI
 
 # Class to hold arguments for importance calculation functions
 class ImportanceArgs:
@@ -278,11 +277,14 @@ plt.rcParams.update({
 # Load environment variables
 load_dotenv()
 
-# Set up Google Gemini client
-_gemini_api_key = os.getenv("OPENAI_API_KEY")
-if not _gemini_api_key:
-    raise ValueError("OPENAI_API_KEY (Google API key) not found in .env file")
-client = genai.Client(api_key=_gemini_api_key)
+# Set up OpenRouter client
+_openrouter_api_key = os.getenv("OPENAI_API_KEY")
+if not _openrouter_api_key:
+    raise ValueError("OPENAI_API_KEY not found in .env file")
+client = OpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=_openrouter_api_key,
+)
 
 # Initialize the r1-distill-qwen-14b tokenizer
 tokenizer = AutoTokenizer.from_pretrained("deepseek-ai/deepseek-r1-distill-qwen-14b")
@@ -426,16 +428,17 @@ def generate_chunk_summary(chunk_text: str) -> str:
     """
 
     try:
-        response = client.models.generate_content(
-            model="gemini-3-flash-preview",
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.0,
-                max_output_tokens=20,
-            ),
+        response = client.chat.completions.create(
+            model="openai/gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0,
+            max_tokens=20,
         )
 
-        summary = response.text.strip()
+        text = response.choices[0].message.content
+        if not text:
+            raise ValueError("Empty response text from model")
+        summary = text.strip()
 
         # Ensure it's actually 2-3 words
         words = summary.split()
@@ -477,16 +480,17 @@ def generate_problem_nickname(problem_text: str) -> str:
     """
 
     try:
-        response = client.models.generate_content(
-            model="gemini-3-flash-preview",
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.0,
-                max_output_tokens=20,
-            ),
+        response = client.chat.completions.create(
+            model="openai/gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0,
+            max_tokens=20,
         )
 
-        nickname = response.text.strip()
+        text = response.choices[0].message.content
+        if not text:
+            raise ValueError("Empty response text from model")
+        nickname = text.strip()
 
         # Ensure it's actually 2-3 words
         words = nickname.split()
@@ -521,16 +525,17 @@ def label_chunk(problem_text: str, chunks: List[str], chunk_idx: int) -> Dict:
     formatted_prompt = DAG_PROMPT.format(problem_text=problem_text, full_chunked_text=full_chunked_text)
 
     try:
-        response = client.models.generate_content(
-            model="gemini-3-flash-preview",
-            contents=formatted_prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.0,
-                response_mime_type="application/json",
-            ),
+        response = client.chat.completions.create(
+            model="openai/gpt-4o-mini",
+            messages=[{"role": "user", "content": formatted_prompt}],
+            temperature=0.0,
+            response_format={"type": "json_object"},
         )
 
-        result = json.loads(response.text)
+        text = response.choices[0].message.content
+        if not text:
+            raise ValueError("Empty response text from model")
+        result = json.loads(text)
 
         # Add the chunk and its index to the result
         result["chunk"] = chunks[chunk_idx]
@@ -1767,6 +1772,10 @@ def generate_plots(
 
     # Convert to DataFrame
     df_chunks = pd.DataFrame(all_chunks)
+
+    if df_chunks.empty or "function_tags" not in df_chunks.columns:
+        print("No chunks with valid function tags found, skipping variance analysis plots")
+        return
 
     # Create a DataFrame for chunks with forced importance if available
     df_chunks_forced = (pd.DataFrame(all_chunks_with_forced) if all_chunks_with_forced else None)
