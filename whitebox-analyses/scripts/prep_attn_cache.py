@@ -31,45 +31,46 @@ from attention_analysis.attn_supp_funcs import get_suppression_KL_matrix
 from pytorch_models.model_config import model2layers_heads
 
 
-def get_all_problems(model_name: str) -> List[Tuple[str, bool]]:
+def get_all_problems(model_name: str, dataset: str = "gpqa") -> List[Tuple[str, bool]]:
     problems = []
-    dir_root = get_model_rollouts_root(model_name)
-    
+    dir_root = get_model_rollouts_root(model_name, dataset=dataset)
+
     correct_dir = os.path.join(dir_root, "correct_base_solution")
     if os.path.exists(correct_dir):
         for problem_dir in os.listdir(correct_dir):
             if problem_dir.startswith("problem_"):
                 problems.append((problem_dir, True))
-    
+
     incorrect_dir = os.path.join(dir_root, "incorrect_base_solution")
     if os.path.exists(incorrect_dir):
         for problem_dir in os.listdir(incorrect_dir):
             if problem_dir.startswith("problem_"):
                 problems.append((problem_dir, False))
-    
+
     return sorted(problems)
 
 
 def cache_attention_matrices(
     model_name: str,
     problems: List[Tuple[str, bool]],
-    verbose: bool = True
+    verbose: bool = True,
+    dataset: str = "gpqa",
 ) -> None:
     """Cache attention matrices for all problems and all layer-head combinations."""
     layers, heads = model2layers_heads(model_name)
-    
-    print(f"\nCaching attention matrices for {model_name}...")
+
+    print(f"\nCaching attention matrices for {model_name} [{dataset}]...")
     print(f"  Model has {layers} layers and {heads} heads")
     print(f"  Processing {len(problems)} problems")
-    
+
     for problem_num, is_correct in tqdm(problems, desc="Problems"):
         try:
-            text, sentences = get_problem_text_sentences(problem_num, is_correct, model_name)
-            
+            text, sentences = get_problem_text_sentences(problem_num, is_correct, model_name, dataset=dataset)
+
             if verbose:
                 status = "correct" if is_correct else "incorrect"
                 print(f"\n  Processing {problem_num} ({status}): {len(sentences)} sentences")
-            
+
             for layer in range(layers):
                 for head in range(heads):
                     _ = get_avg_attention_matrix(
@@ -90,15 +91,16 @@ def cache_vertical_scores(
     problems: List[Tuple[str, bool]],
     proximity_ignore: int = 4,
     control_depth: bool = False,
-    verbose: bool = True
+    verbose: bool = True,
+    dataset: str = "gpqa",
 ) -> None:
     """Cache vertical attention scores for all problems."""
-    print(f"\nCaching vertical scores for {model_name}...")
+    print(f"\nCaching vertical scores for {model_name} [{dataset}]...")
     print(f"  proximity_ignore={proximity_ignore}, control_depth={control_depth}")
-    
+
     for problem_num, is_correct in tqdm(problems, desc="Problems"):
         try:
-            text, sentences = get_problem_text_sentences(problem_num, is_correct, model_name)
+            text, sentences = get_problem_text_sentences(problem_num, is_correct, model_name, dataset=dataset)
             
             if verbose:
                 status = "correct" if is_correct else "incorrect"
@@ -123,16 +125,18 @@ def cache_receiver_head_scores(
     proximity_ignore: int = 4,
     control_depth: bool = False,
     top_k: int = 20,
+    dataset: str = "gpqa",
 ) -> None:
     """Cache receiver head scores for all problems."""
-    print(f"\nCaching receiver head scores for {model_name}...")
+    print(f"\nCaching receiver head scores for {model_name} [{dataset}]...")
     print(f"  top_k={top_k}, proximity_ignore={proximity_ignore}, control_depth={control_depth}")
-    
+
     _ = get_all_receiver_head_scores(
         model_name=model_name,
         proximity_ignore=proximity_ignore,
         control_depth=control_depth,
         top_k=top_k,
+        dataset=dataset,
     )
 
 
@@ -141,23 +145,24 @@ def cache_kl_divergences(
     problems: List[Tuple[str, bool]],
     p_nucleus: float = 0.9999,
     take_log: bool = True,
-    verbose: bool = True
+    verbose: bool = True,
+    dataset: str = "gpqa",
 ) -> None:
     """Cache KL divergences between sentences for all problems."""
-    print(f"\nCaching KL divergences for {model_name}...")
+    print(f"\nCaching KL divergences for {model_name} [{dataset}]...")
     print(f"  p_nucleus={p_nucleus}, take_log={take_log}")
-    
+
     for problem_num, is_correct in tqdm(problems, desc="Problems"):
         try:
             if problem_num.startswith("problem_"):
                 problem_num_int = int(problem_num.replace("problem_", ""))
             else:
                 problem_num_int = int(problem_num)
-            
+
             if verbose:
                 status = "correct" if is_correct else "incorrect"
                 print(f"\n  Processing problem {problem_num_int} ({status})")
-            
+
             # This will automatically cache through the @pkld decorator
             _ = get_suppression_KL_matrix(
                 problem_num=problem_num_int,
@@ -166,6 +171,7 @@ def cache_kl_divergences(
                 is_correct=is_correct,
                 only_first=None,
                 take_log=take_log,
+                dataset=dataset,
             )
             
         except Exception as e:
@@ -226,6 +232,13 @@ def main():
         help="Number of top receiver heads to identify",
     )
     parser.add_argument(
+        "--dataset",
+        type=str,
+        default="gpqa",
+        choices=["gpqa", "math"],
+        help="Dataset to process: 'gpqa' or 'math' (default: gpqa)",
+    )
+    parser.add_argument(
         "--verbose",
         action="store_true",
         help="Print detailed progress information",
@@ -236,35 +249,35 @@ def main():
         default=None,
         help="Maximum number of problems to process (for testing)",
     )
-    
+
     args = parser.parse_args()
-    
+
     if args.all_models:
-        models = ["qwen-15b", "qwen-14b", "llama-8b"]
+        models = ["qwen-14b", "llama-8b"]
     elif args.model:
         models = [args.model]
     else:
-        models = ["qwen-15b", "qwen-14b"]
-    
+        models = ["qwen-14b"]
+
     for model_name in models:
         print(f"\n{'='*60}")
-        print(f"Processing model: {model_name}")
+        print(f"Processing model: {model_name}  dataset: {args.dataset}")
         print(f"{'='*60}")
-        
+
         try:
-            problems = get_all_problems(model_name)
-            
+            problems = get_all_problems(model_name, dataset=args.dataset)
+
             if args.max_problems:
                 problems = problems[:args.max_problems]
                 print(f"Limiting to first {args.max_problems} problems for testing")
-            
+
             print(f"Found {len(problems)} problems to cache")
-            
+
             if not args.skip_attention:
-                cache_attention_matrices(model_name, problems, verbose=args.verbose)
+                cache_attention_matrices(model_name, problems, verbose=args.verbose, dataset=args.dataset)
             else:
                 print("Skipping attention matrix caching")
-            
+
             if not args.skip_vertical:
                 cache_vertical_scores(
                     model_name,
@@ -272,20 +285,22 @@ def main():
                     proximity_ignore=args.proximity_ignore,
                     control_depth=args.control_depth,
                     verbose=args.verbose,
+                    dataset=args.dataset,
                 )
             else:
                 print("Skipping vertical score caching")
-            
+
             if not args.skip_receiver:
                 cache_receiver_head_scores(
                     model_name,
                     proximity_ignore=args.proximity_ignore,
                     control_depth=args.control_depth,
                     top_k=args.top_k,
+                    dataset=args.dataset,
                 )
             else:
                 print("Skipping receiver head score caching")
-            
+
             if args.kl_divergence:
                 cache_kl_divergences(
                     model_name,
@@ -293,6 +308,7 @@ def main():
                     p_nucleus=0.9999,
                     take_log=True,
                     verbose=args.verbose,
+                    dataset=args.dataset,
                 )
             else:
                 print("Skipping KL divergence caching (use --kl-divergence to enable)")

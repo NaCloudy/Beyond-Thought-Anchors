@@ -36,10 +36,10 @@ from attention_analysis.attn_funcs import get_vertical_scores
 
 
 def get_taxonomic_labels(
-    problem_num: int, is_correct: bool, model_name: str = "qwen-14b"
+    problem_num: int, is_correct: bool, model_name: str = "qwen-14b", dataset: str = "gpqa"
 ) -> List[List[str]]:
     """Get taxonomic labels for each sentence/chunk in the problem."""
-    dir_root = get_model_rollouts_root(model_name)
+    dir_root = get_model_rollouts_root(model_name, dataset=dataset)
     if is_correct:
         ci = "correct_base_solution"
     else:
@@ -64,9 +64,10 @@ def get_taxonomic_labels(
 
 def get_all_problems_list(
     model_name: str = "qwen-14b",
+    dataset: str = "gpqa",
 ) -> List[Tuple[int, bool]]:
     """Get list of all problems and their correctness status."""
-    dir_root = get_model_rollouts_root(model_name)
+    dir_root = get_model_rollouts_root(model_name, dataset=dataset)
     problems_list = []
 
     # Check correct solutions
@@ -104,6 +105,7 @@ def detect_convergence(
     convergence_window: int = 5,
     high_threshold: float = 0.95,
     low_threshold: float = 0.05,
+    dataset: str = "gpqa",
 ) -> List[bool]:
     """
     Detect convergence for each sentence in the problem.
@@ -112,7 +114,7 @@ def detect_convergence(
 
     Returns a list of booleans where True means the sentence is pre-convergence.
     """
-    dir_root = get_model_rollouts_root(model_name)
+    dir_root = get_model_rollouts_root(model_name, dataset=dataset)
     if is_correct:
         ci = "correct_base_solution"
     else:
@@ -160,11 +162,12 @@ def detect_convergence(
 def calculate_receiver_head_scores_for_problem(
     problem_num: int,
     is_correct: bool,
-    model_name: str = "qwen-15b",  # Using qwen-15b for analysis
+    model_name: str = "qwen-14b",
     top_k: int = 16,
     proximity_ignore: int = 4,
     control_depth: bool = False,
     include_incorrect: bool = False,
+    dataset: str = "gpqa",
 ) -> np.ndarray:
     """
     Calculate receiver head scores for a single problem.
@@ -172,8 +175,8 @@ def calculate_receiver_head_scores_for_problem(
     """
     # Get problem text and sentences
     text, sentences_w_spacing = get_problem_text_sentences(
-        problem_num, is_correct, model_name
-    )  # Load from qwen-14b data
+        problem_num, is_correct, model_name, dataset=dataset
+    )
 
     # Get top k receiver heads (these are the most important attention heads)
     print(f"  Getting top {top_k} receiver heads for {model_name}...")
@@ -183,6 +186,7 @@ def calculate_receiver_head_scores_for_problem(
         proximity_ignore=proximity_ignore,
         control_depth=control_depth,
         include_incorrect=include_incorrect,
+        dataset=dataset,
     )
 
     # Calculate vertical scores for all heads for this problem
@@ -207,14 +211,15 @@ def calculate_receiver_head_scores_for_problem(
 
 
 def generate_receiver_head_csvs(
-    model_name: str = "qwen-15b",  # Model for analysis
-    data_model: str = "qwen-14b",  # Model for data source
+    model_name: str = "qwen-14b",
+    data_model: str = "qwen-14b",
     top_k: int = 16,
     proximity_ignore: int = 4,
     control_depth: bool = False,
-    output_dir: str = "csvs",  # Output to outer csvs folder
+    output_dir: str = "csvs",
     max_problems: Optional[int] = None,
     include_incorrect: bool = False,
+    dataset: str = "gpqa",
 ):
     """
     Generate CSV files with receiver head scores for all problems.
@@ -224,7 +229,7 @@ def generate_receiver_head_csvs(
     output_path.mkdir(parents=True, exist_ok=True)
 
     # Get list of all problems
-    problems_list = get_all_problems_list(data_model)
+    problems_list = get_all_problems_list(data_model, dataset=dataset)
     if max_problems:
         problems_list = problems_list[:max_problems]
 
@@ -238,15 +243,15 @@ def generate_receiver_head_csvs(
         try:
             # Get problem text and sentences
             text, sentences_w_spacing = get_problem_text_sentences(
-                problem_num, is_correct, data_model
+                problem_num, is_correct, data_model, dataset=dataset
             )
 
             # Get taxonomic labels
-            labels = get_taxonomic_labels(problem_num, is_correct, data_model)
+            labels = get_taxonomic_labels(problem_num, is_correct, data_model, dataset=dataset)
 
             # Detect convergence for each sentence
             pre_convergence, accuracies = detect_convergence(
-                problem_num, is_correct, data_model
+                problem_num, is_correct, data_model, dataset=dataset
             )
 
             # Calculate receiver head scores
@@ -258,6 +263,7 @@ def generate_receiver_head_csvs(
                 proximity_ignore=proximity_ignore,
                 control_depth=control_depth,
                 include_incorrect=include_incorrect,
+                dataset=dataset,
             )
             labels = labels[:-1]
 
@@ -446,6 +452,13 @@ if __name__ == "__main__":
         action="store_true",
         help="Include incorrect solutions (default: correct only)",
     )
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default="gpqa",
+        choices=["gpqa", "math"],
+        help="Dataset to process: 'gpqa' or 'math' (default: gpqa)",
+    )
 
     args = parser.parse_args()
 
@@ -459,6 +472,7 @@ if __name__ == "__main__":
         output_dir=args.output_dir,
         max_problems=args.max_problems,
         include_incorrect=args.include_incorrect,
+        dataset=args.dataset,
     )
 
     print(

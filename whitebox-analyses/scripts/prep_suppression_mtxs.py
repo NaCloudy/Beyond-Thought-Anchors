@@ -18,18 +18,19 @@ from attention_analysis.receiver_head_funcs import (
 )
 
 
-def get_all_problem_numbers(model_name="qwen-14b", include_incorrect=True):
+def get_all_problem_numbers(model_name="qwen-14b", include_incorrect=True, dataset="gpqa"):
     """
     Get all problem numbers from the rollouts directory.
 
     Args:
         model_name: Model name to get problems for
         include_incorrect: If True, include both correct and incorrect solutions
+        dataset: "gpqa" or "math"
 
     Returns:
         List of (problem_num, is_correct) tuples
     """
-    dir_root = get_model_rollouts_root(model_name)
+    dir_root = get_model_rollouts_root(model_name, dataset=dataset)
     problem_list = []
 
     # Process correct solutions
@@ -61,6 +62,7 @@ def process_all_problems_kl(
     output_dir: str = "kl_results",
     max_problems: Optional[int] = None,
     include_incorrect: bool = True,
+    dataset: str = "gpqa",
 ) -> Dict[Tuple[int, bool], np.ndarray]:
     """
     Process all problems to compute sentence-to-sentence KL divergences.
@@ -79,7 +81,7 @@ def process_all_problems_kl(
         Dictionary mapping (problem_num, is_correct) to KL matrices
     """
     # Get all problem numbers
-    problem_list = get_all_problem_numbers(model_name, include_incorrect)
+    problem_list = get_all_problem_numbers(model_name, include_incorrect, dataset=dataset)
 
     if max_problems:
         problem_list = problem_list[:max_problems]
@@ -101,6 +103,7 @@ def process_all_problems_kl(
                 is_correct=is_correct,
                 only_first=only_first,
                 take_log=take_log,
+                dataset=dataset,
             )
 
             if sentence_sentence_scores is None:
@@ -144,23 +147,51 @@ def process_all_problems_kl(
 
 
 if __name__ == "__main__":
-    # Testing
-    model_name = "qwen-15b"
-    p_nucleus = 0.9999
-    take_log = True
-    only_first = None  # Process all tokens in each sentence
-    plot_sentences = False  # Set to True to generate plots for each sentence
-    max_problems = None  # Set to a number to limit processing (e.g., 10 for testing)
-    include_incorrect = False  # Process correct solutions only
+    import argparse
 
-    # Process all problems
+    parser = argparse.ArgumentParser(
+        description="Compute and save sentence-to-sentence KL divergence matrices (Method 3)"
+    )
+    parser.add_argument(
+        "--model-name",
+        type=str,
+        default="qwen-14b",
+        help="Model name (default: qwen-14b)",
+    )
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default="gpqa",
+        choices=["gpqa", "math"],
+        help="Dataset to process: 'gpqa' or 'math' (default: gpqa)",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default="kl_results",
+        help="Directory to save KL matrices (default: kl_results)",
+    )
+    parser.add_argument(
+        "--max-problems",
+        type=int,
+        default=None,
+        help="Maximum number of problems to process (default: all)",
+    )
+    parser.add_argument(
+        "--include-incorrect",
+        action="store_true",
+        help="Also process incorrect solutions (default: correct only)",
+    )
+    args = parser.parse_args()
+
     results = process_all_problems_kl(
-        model_name=model_name,
-        p_nucleus=p_nucleus,
-        only_first=only_first,
-        take_log=take_log,
+        model_name=args.model_name,
+        p_nucleus=0.9999,
+        only_first=None,
+        take_log=True,
         save_results=True,
-        output_dir="kl_results",
-        max_problems=max_problems,
-        include_incorrect=include_incorrect,
+        output_dir=args.output_dir,
+        max_problems=args.max_problems,
+        include_incorrect=args.include_incorrect,
+        dataset=args.dataset,
     )

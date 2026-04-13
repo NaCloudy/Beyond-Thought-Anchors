@@ -27,30 +27,30 @@ class ModelLoader:
     ) -> Tuple[AutoModelForCausalLM, AutoTokenizer]:
         """
         Load a model and tokenizer with specified configuration.
-        
+
         Args:
             model_name: Short name of the model to load
             float32: Use float32 precision (if False, uses float16/bfloat16)
             device_map: Device mapping strategy
             do_flash_attn: Use Flash Attention 2
-            
+
         Returns:
             Tuple of (model, tokenizer)
-            
+
         Raises:
             ValueError: If model name is unknown
         """
         cache_key = (model_name, float32, device_map, do_flash_attn)
-        
+
         if cache_key in self._model_cache:
             return self._model_cache[cache_key]
-        
+
         model, tokenizer = self._load_model(model_name, float32, device_map, do_flash_attn)
-        
+
         self._model_cache[cache_key] = (model, tokenizer)
-        
+
         return model, tokenizer
-    
+
     def _load_model(
         self,
         model_name: str,
@@ -113,7 +113,6 @@ class ModelLoader:
             model_kwargs["torch_dtype"] = torch.float32
             print("Using float32 as requested")
         elif "gpt-oss" in model_name:
-            # GPT-OSS models use bfloat16 by default when not using float32
             model_kwargs["torch_dtype"] = torch.bfloat16
             print("Using bfloat16 for GPT-OSS model (recommended)")
         else:

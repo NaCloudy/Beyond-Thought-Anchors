@@ -302,11 +302,7 @@ def compute_all_attention_matrices(
         text,
         model_name=model_name,
         verbose=verbose,
-        ##################
-        #float32=True,#model_name == "qwen-15b",
-        ##################
         float32=(model_name == "qwen-15b"),
-        ##################
         attn_layers=None,
         return_logits=False,
         device_map=device_map,
@@ -374,7 +370,6 @@ def get_avg_attention_matrix(
             return np.load(cache_path)
 
     if cache_dir and text_id:
-        # print(f"Computing attention matrices for {text_id}...")
         success = compute_all_attention_matrices(
             text=text,
             model_name=model_name,

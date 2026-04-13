@@ -33,9 +33,10 @@ def get_suppression_KL_matrix(
     is_correct: bool = True,
     only_first: Optional[int] = None,
     take_log: bool = True,
+    dataset: str = "gpqa",
 ) -> Optional[np.ndarray]:
     try:
-        text, sentences = get_problem_text_sentences(problem_num, is_correct, model_name)
+        text, sentences = get_problem_text_sentences(problem_num, is_correct, model_name, dataset=dataset)
     except Exception as e:
         print(f"Error loading problem {problem_num}: {e}")
         return None

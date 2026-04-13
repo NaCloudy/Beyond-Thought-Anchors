@@ -122,12 +122,14 @@ def get_top_k_receiver_heads(
     proximity_ignore: int = 4,
     control_depth: bool = False,
     include_incorrect: bool = True,
+    dataset: str = "gpqa",
 ) -> np.ndarray:
     resp_layer_head_verts, _ = get_all_problems_vert_scores(
         model_name=model_name,
         proximity_ignore=proximity_ignore,
         control_depth=control_depth,
         include_incorrect=include_incorrect,
+        dataset=dataset,
     )
 
     resp_layer_head_kurts = []
@@ -149,35 +151,31 @@ def get_top_k_receiver_heads(
     return layer_head
 
 
-def get_model_rollouts_root(model_name: str = "qwen-14b") -> str:
+def get_model_rollouts_root(model_name: str = "qwen-14b", dataset: str = "gpqa") -> str:
+    """
+    Args:
+        model_name: short model name, e.g. "qwen-14b"
+        dataset: "gpqa" or "math"
+    """
+    if dataset == "math":
+        rollouts_dir = "math-rollouts"
+    elif dataset == "gpqa":
+        rollouts_dir = "gpqa-rollouts"
+    else:
+        raise ValueError(f"Unknown dataset: {dataset!r}. Must be 'gpqa' or 'math'.")
+
     if "qwen" in model_name:
-        dir_root = os.path.join(
-            ####################################
-            # "math-rollouts",
-            ####################################
-            "gpqa-rollouts",
-            ####################################
-            "deepseek-r1-distill-qwen-14b",
-            "temperature_0.6_top_p_0.95",
-        )
+        dir_root = os.path.join(rollouts_dir, "deepseek-r1-distill-qwen-14b", "temperature_0.6_top_p_0.95")
     elif "llama" in model_name:
-        dir_root = os.path.join(
-            ####################################
-            # "math-rollouts",
-            ####################################
-            "gpqa-rollouts",
-            ####################################
-            "deepseek-r1-distill-llama-8b",
-            "temperature_0.6_top_p_0.95",
-        )
+        dir_root = os.path.join(rollouts_dir, "deepseek-r1-distill-llama-8b", "temperature_0.6_top_p_0.95")
     else:
         raise ValueError(f"Invalid model name, nothing to load: {model_name=}")
     return dir_root
 
 
 @pkld
-def get_problem_text_sentences(problem_num: Union[int, str], is_correct: bool, model_name: str = "qwen-14b") -> Tuple[str, List[str]]:
-    dir_root = get_model_rollouts_root(model_name)
+def get_problem_text_sentences(problem_num: Union[int, str], is_correct: bool, model_name: str = "qwen-14b", dataset: str = "gpqa") -> Tuple[str, List[str]]:
+    dir_root = get_model_rollouts_root(model_name, dataset=dataset)
     if is_correct:
         ci = "correct_base_solution"
     else:
@@ -204,9 +202,10 @@ def get_all_problems_vert_scores(
     proximity_ignore: int = 4,
     control_depth: bool = False,
     include_incorrect: bool = True,
+    dataset: str = "gpqa",
 ) -> Tuple[List[np.ndarray], List[Tuple[int, int]]]:
 
-    dir_root = get_model_rollouts_root(model_name)
+    dir_root = get_model_rollouts_root(model_name, dataset=dataset)
 
     correct_incorrect = ["correct_base_solution"]
     if include_incorrect:
@@ -227,7 +226,7 @@ def get_all_problems_vert_scores(
         for idx_problem, problem in enumerate(problems):
             if problem == 'problem_3935':  # 13k tokens long, too intense on the RAM/VRAM
                 continue
-            text, sentences_w_spacing = get_problem_text_sentences(problem, is_correct, model_name)
+            text, sentences_w_spacing = get_problem_text_sentences(problem, is_correct, model_name, dataset=dataset)
 
             # The model will be run.
             # Its sentence-averaged attention weight matrices will be cached.
@@ -264,6 +263,7 @@ def get_all_receiver_head_scores(
     control_depth: bool = False,
     top_k: int = 20,
     include_incorrect: bool = True,
+    dataset: str = "gpqa",
 ) -> Tuple[List[np.ndarray], List[Tuple[int, int]]]:
 
     print("Getting top k layer head kurts")
@@ -273,6 +273,7 @@ def get_all_receiver_head_scores(
         proximity_ignore=proximity_ignore,
         control_depth=control_depth,
         include_incorrect=include_incorrect,
+        dataset=dataset,
     )
     print("Getting all vert scores")
 
@@ -281,6 +282,7 @@ def get_all_receiver_head_scores(
         proximity_ignore=proximity_ignore,
         control_depth=control_depth,
         include_incorrect=include_incorrect,
+        dataset=dataset,
     )
 
     print("Getting rec scores")
