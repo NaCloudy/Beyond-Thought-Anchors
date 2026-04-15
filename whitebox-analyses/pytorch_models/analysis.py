@@ -22,6 +22,7 @@ def extract_attention_and_logits(
     attn_layers: Optional[List[int]] = None,
     token_range_to_mask: Optional[List[int]] = None,
     mask_layers: Optional[Dict[int, List[int]]] = None,
+    attn_hook_callback=None,
 ) -> Dict[str, Any]:
     """
     Run a forward pass to extract attention weights and logits.
@@ -57,13 +58,19 @@ def extract_attention_and_logits(
 
     # Hook-based attention capture: moves each layer's weights to CPU immediately
     # and replaces GPU tensor with None, preventing VRAM accumulation across layers.
-    # This avoids OOM on long sequences where storing all layers at once (~50GB) exceeds VRAM.
+    # If attn_hook_callback is provided, it is called with (layer_idx, cpu_tensor) and
+    # the tensor is NOT stored in attention_weights — keeping peak RAM at ~2GB vs ~96GB.
     def make_attn_hook(layer_idx):
         def hook(module, args, output):
             # output: (attn_output, attn_weights, ...) from self_attn
             if output[1] is not None:
                 if attn_layers is None or layer_idx in attn_layers:
-                    attention_weights[layer_idx] = output[1].detach().cpu()
+                    if attn_hook_callback is not None:
+                        # Pass GPU tensor directly so callback can compute on GPU.
+                        # Avoids transferring gigabytes per layer to CPU.
+                        attn_hook_callback(layer_idx, output[1].detach())
+                    else:
+                        attention_weights[layer_idx] = output[1].detach().cpu()
                 # Return None for attn_weights to free GPU memory immediately
                 return (output[0], None) + output[2:]
         return hook
@@ -188,6 +195,7 @@ def analyze_text(
     token_range_to_mask: Optional[List[int]] = None,
     layers_to_mask: Optional[Dict[int, List[int]]] = None,
     device_map: str = "auto",
+    attn_hook_callback=None,
 ) -> Dict[str, Any]:
     """
     Analyze a text using a model's forward pass.
@@ -235,6 +243,7 @@ def analyze_text(
         attn_layers=attn_layers,
         token_range_to_mask=token_range_to_mask,
         mask_layers=layers_to_mask,
+        attn_hook_callback=attn_hook_callback,
     )
 
     print_gpu_memory_summary("After forward pass")

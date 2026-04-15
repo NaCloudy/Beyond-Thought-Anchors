@@ -74,11 +74,6 @@ def get_all_problems_list(
     correct_dir = os.path.join(dir_root, "correct_base_solution")
     if os.path.exists(correct_dir):
         for problem_dir in os.listdir(correct_dir):
-            if (
-                "problem_3935" in problem_dir
-            ):  # 13k tokens long, too intense on the RAM/VRAM
-                continue
-
             if problem_dir.startswith("problem_"):
                 problem_num = int(problem_dir.replace("problem_", ""))
                 problems_list.append((problem_num, True))
@@ -87,10 +82,6 @@ def get_all_problems_list(
     incorrect_dir = os.path.join(dir_root, "incorrect_base_solution")
     if os.path.exists(incorrect_dir):
         for problem_dir in os.listdir(incorrect_dir):
-            if (
-                "problem_3935" in problem_dir
-            ):  # 13k tokens long, too intense on the RAM/VRAM
-                continue
             if problem_dir.startswith("problem_"):
                 problem_num = int(problem_dir.replace("problem_", ""))
                 problems_list.append((problem_num, False))

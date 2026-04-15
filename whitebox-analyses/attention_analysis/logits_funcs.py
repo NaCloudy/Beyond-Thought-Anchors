@@ -200,7 +200,7 @@ def analyze_text_get_p_logits(
         seed=seed,
         float32=float32,
         return_logits=True,
-        attn_layers=[0],  # Minimal layers for logits extraction
+        attn_layers=[],  # No attention extraction needed — logits only
         verbose=False,
         token_range_to_mask=token_range_to_mask,
         layers_to_mask=layers_to_mask,

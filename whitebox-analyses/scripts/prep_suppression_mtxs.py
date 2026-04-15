@@ -92,6 +92,23 @@ def process_all_problems_kl(
 
     for problem_num, is_correct in tqdm(problem_list, desc="Processing problems"):
         correct_str = "correct" if is_correct else "incorrect"
+
+        # Resume: skip problems whose output file already exists and is valid
+        if save_results:
+            existing = Path(output_dir) / model_name / correct_str / f"problem_{problem_num}_kl.npy"
+            if existing.exists():
+                try:
+                    data = np.load(existing)
+                    # Valid = loadable, non-empty, and not entirely NaN
+                    if data.size > 0 and not np.all(np.isnan(data)):
+                        print(f"\nSkipping problem {problem_num} ({correct_str}) — already computed")
+                        results[(problem_num, is_correct)] = data
+                        continue
+                    else:
+                        print(f"\nRecomputing problem {problem_num} ({correct_str}) — file is empty or all-NaN")
+                except Exception:
+                    print(f"\nRecomputing problem {problem_num} ({correct_str}) — file is corrupted")
+
         print(f"\nProcessing problem {problem_num} ({correct_str})...")
 
         try:
@@ -123,6 +140,9 @@ def process_all_problems_kl(
         except Exception as e:
             print(f"  Error processing problem {problem_num} ({correct_str}): {e}")
             continue
+
+        finally:
+            torch.cuda.empty_cache()
 
     # Save summary results
     if save_results and results:
