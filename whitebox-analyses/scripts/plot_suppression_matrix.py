@@ -174,7 +174,9 @@ if __name__ == "__main__":
     
     if args.normalize_rows:
         for i in range(sentence_sentence_scores.shape[0]):
-            sentence_sentence_scores[i, :] -= np.nanmean(sentence_sentence_scores[i, :])
+            row = sentence_sentence_scores[i, :]
+            if np.any(~np.isnan(row)):  # 跳过全 NaN 行（如第 0 行）
+                sentence_sentence_scores[i, :] -= np.nanmean(row)
         sentence_sentence_scores[np.diag_indices_from(sentence_sentence_scores)] = np.nanquantile(
             sentence_sentence_scores, 0.99
         )
