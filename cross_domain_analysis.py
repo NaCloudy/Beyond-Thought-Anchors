@@ -17,6 +17,7 @@ import os
 import sys
 import hashlib
 from collections import defaultdict
+from typing import Optional
 
 import numpy as np
 from scipy import stats
@@ -34,10 +35,10 @@ REC_CSV_SUFFIX = f"receiver_head_scores_correct_{MODEL_NAME}_k32_pi16.csv"
 
 SENTINEL = -20.72326584  # Sentinel value used to fill the upper triangle of the KL matrix
 
-
 # ──────────────────────────────────────────────────────────────────────────────
 # 1. Data Loading
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def load_method1(domain: str) -> list[dict]:
     """
@@ -49,8 +50,7 @@ def load_method1(domain: str) -> list[dict]:
         'n': int
       }
     """
-    path = os.path.join(BASE_DIR, "analysis", domain,
-                        "correct_base_solution", "analysis_results.json")
+    path = os.path.join(BASE_DIR, "analysis", domain, "correct_base_solution", "analysis_results.json")
     with open(path, encoding="utf-8") as f:
         raw = json.load(f)
 
@@ -83,12 +83,15 @@ def load_method2(domain: str) -> dict[str, list[float]]:
     return {pid: [s for _, s in sorted(v)] for pid, v in result.items()}
 
 
+M3_WINDOW = 3  # 固定前向窗口大小：只看紧随后 k 句的 KL 均值，消除末尾位置偏差
+
+
 def load_method3(domain: str) -> dict[str, np.ndarray]:
     """
     Returns {problem_id: per_sentence_causal_score (1D array)}
 
-    per-sentence score = mean KL impact of this sentence on all subsequent sentences
-    (i.e., mean of column i in the KL matrix over the j > i portion; sentinel values excluded)
+    per-sentence score = 遮蔽句子 i 后，紧随的 M3_WINDOW 句 KL 变化的均值
+    （原先取全链均值导致末尾句子因窗口收缩而系统性得高分；固定窗口消除此偏差）
     """
     kl_dir = os.path.join(BASE_DIR, "kl_results", domain, MODEL_NAME, "correct")
     result = {}
@@ -100,8 +103,8 @@ def load_method3(domain: str) -> dict[str, np.ndarray]:
         N = mat.shape[0]
         scores = []
         for i in range(N):
-            col = mat[i + 1:, i]  # column i, only the j > i portion
-            # Exclude sentinel values (upper triangle padding)
+            j_end = min(N, i + 1 + M3_WINDOW)
+            col = mat[i + 1:j_end, i]  # 只取紧随的 M3_WINDOW 句
             valid = col[col > SENTINEL + 1]
             scores.append(float(valid.mean()) if len(valid) > 0 else 0.0)
         result[pid] = np.array(scores)
@@ -123,6 +126,7 @@ def load_method3_matrix(domain: str) -> dict[str, np.ndarray]:
 # ──────────────────────────────────────────────────────────────────────────────
 # 2. Statistical Utility Functions
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def gini(scores: list[float]) -> float:
     """Compute the Gini coefficient (0 = perfectly equal, 1 = perfectly concentrated)"""
@@ -148,8 +152,7 @@ def jsd(p: np.ndarray, q: np.ndarray) -> float:
     return float(0.5 * kl_pm.sum() + 0.5 * kl_qm.sum())
 
 
-def permutation_test_2samp(a: np.ndarray, b: np.ndarray,
-                            n_perm: int = 10000) -> float:
+def permutation_test_2samp(a: np.ndarray, b: np.ndarray, n_perm: int = 10000) -> float:
     """Two-sample permutation test, returns p-value (two-tailed)"""
     a, b = np.array(a), np.array(b)
     obs = abs(a.mean() - b.mean())
@@ -173,19 +176,16 @@ def cliffs_delta(a: np.ndarray, b: np.ndarray) -> float:
     return dom / n
 
 
-def bootstrap_ci(values: np.ndarray, func=np.mean,
-                 n_boot: int = 5000, ci: float = 0.95) -> tuple[float, float]:
+def bootstrap_ci(values: np.ndarray, func=np.mean, n_boot: int = 5000, ci: float = 0.95) -> tuple[float, float]:
     """Bootstrap confidence interval"""
     rng = np.random.default_rng(42)
-    boot_stats = [func(rng.choice(values, size=len(values), replace=True))
-                  for _ in range(n_boot)]
+    boot_stats = [func(rng.choice(values, size=len(values), replace=True)) for _ in range(n_boot)]
     lo = (1 - ci) / 2
     hi = 1 - lo
     return float(np.quantile(boot_stats, lo)), float(np.quantile(boot_stats, hi))
 
 
-def bootstrap_jsd_ci(tags_a: list[str], tags_b: list[str],
-                     all_labels: list[str], n_boot: int = 5000) -> tuple[float, float]:
+def bootstrap_jsd_ci(tags_a: list[str], tags_b: list[str], all_labels: list[str], n_boot: int = 5000) -> tuple[float, float]:
     """Bootstrap CI for JSD (resamples chunk tag lists)"""
     rng = np.random.default_rng(42)
     jsds = []
@@ -224,9 +224,7 @@ def shannon_entropy(dist: np.ndarray) -> float:
 # 3. Exp 2a — Category Distribution (Gini + JSD)
 # ──────────────────────────────────────────────────────────────────────────────
 
-ALL_LABELS = ["problem_setup", "plan_generation", "active_computation",
-              "fact_retrieval", "uncertainty_management",
-              "result_consolidation", "self_checking", "final_answer_emission"]
+ALL_LABELS = ["problem_setup", "plan_generation", "active_computation", "fact_retrieval", "uncertainty_management", "result_consolidation", "self_checking", "final_answer_emission"]
 
 
 def normalize_tag(tag: str) -> str:
@@ -247,31 +245,33 @@ def exp2a_gini_jsd(m1_gpqa: list, m1_math: list) -> dict:
     ci_gini_math = bootstrap_ci(np.array(gini_math))
 
     # ── JSD on label distributions ──
-    all_tags_gpqa = [normalize_tag(t)
-                     for p in m1_gpqa for tags in p["tags"] for t in tags]
-    all_tags_math = [normalize_tag(t)
-                     for p in m1_math for tags in p["tags"] for t in tags]
+    all_tags_gpqa = [normalize_tag(t) for p in m1_gpqa for tags in p["tags"] for t in tags]
+    all_tags_math = [normalize_tag(t) for p in m1_math for tags in p["tags"] for t in tags]
 
     all_labels_norm = [normalize_tag(l) for l in ALL_LABELS]
 
     pa = np.array([all_tags_gpqa.count(lab) for lab in all_labels_norm], dtype=float) + 1e-9
     pm = np.array([all_tags_math.count(lab) for lab in all_labels_norm], dtype=float) + 1e-9
     jsd_val = jsd(pa, pm)
-    ci_jsd = bootstrap_jsd_ci(np.array(all_tags_gpqa), np.array(all_tags_math),
-                               all_labels_norm)
+    ci_jsd = bootstrap_jsd_ci(np.array(all_tags_gpqa), np.array(all_tags_math), all_labels_norm)
 
     # ── Label frequency tables ──
     def label_freq(tag_list):
         total = len(tag_list) + 1e-9
-        return {lab: round(tag_list.count(lab) / total, 4)
-                for lab in all_labels_norm}
+        return {lab: round(tag_list.count(lab) / total, 4) for lab in all_labels_norm}
 
     return {
         "gini": {
-            "gpqa": {"values": gini_gpqa, "mean": float(np.mean(gini_gpqa)),
-                     "ci95": ci_gini_gpqa},
-            "math": {"values": gini_math, "mean": float(np.mean(gini_math)),
-                     "ci95": ci_gini_math},
+            "gpqa": {
+                "values": gini_gpqa,
+                "mean": float(np.mean(gini_gpqa)),
+                "ci95": ci_gini_gpqa
+            },
+            "math": {
+                "values": gini_math,
+                "mean": float(np.mean(gini_math)),
+                "ci95": ci_gini_math
+            },
             "permutation_p": p_gini,
             "cliffs_delta": d_gini,
             "effect_size": cliffs_delta_interp(d_gini),
@@ -289,8 +289,8 @@ def exp2a_gini_jsd(m1_gpqa: list, m1_math: list) -> dict:
 # 4. Exp 2b — Attention Entropy (Shannon entropy of receiver-head score distribution)
 # ──────────────────────────────────────────────────────────────────────────────
 
-def exp2b_attention_entropy(m2_gpqa: dict, m2_math: dict,
-                             m1_gpqa: list, m1_math: list) -> dict:
+
+def exp2b_attention_entropy(m2_gpqa: dict, m2_math: dict, m1_gpqa: list, m1_math: list) -> dict:
     """
     Exp 2b: Attention Entropy
 
@@ -302,6 +302,7 @@ def exp2b_attention_entropy(m2_gpqa: dict, m2_math: dict,
     Note: If raw attention matrices become available later, this computation
     can be replaced.
     """
+
     def problem_entropy(scores: list[float]) -> float:
         arr = np.array(scores, dtype=float)
         arr = arr - arr.min() + 1e-9  # make non-negative
@@ -325,23 +326,33 @@ def exp2b_attention_entropy(m2_gpqa: dict, m2_math: dict,
     ci_math = bootstrap_ci(np.array(ents_math))
 
     return {
-        "gpqa": {"values": ents_gpqa, "mean": float(np.mean(ents_gpqa)), "ci95": ci_gpqa},
-        "math": {"values": ents_math, "mean": float(np.mean(ents_math)), "ci95": ci_math},
-        "permutation_p": p_val,
-        "cliffs_delta": d_val,
-        "effect_size": cliffs_delta_interp(d_val),
-        "interpretation": (
-            "High entropy = multi-broadcast (expected high for GPQA); "
-            "low entropy = single-hop (expected low for Math). "
-            "This proxy metric is based on the receiver_head_score distribution; "
-            "for strict attention-matrix entropy, replace the m2 input."
-        )
+        "gpqa": {
+            "values": ents_gpqa,
+            "mean": float(np.mean(ents_gpqa)),
+            "ci95": ci_gpqa
+        },
+        "math": {
+            "values": ents_math,
+            "mean": float(np.mean(ents_math)),
+            "ci95": ci_math
+        },
+        "permutation_p":
+        p_val,
+        "cliffs_delta":
+        d_val,
+        "effect_size":
+        cliffs_delta_interp(d_val),
+        "interpretation": ("High entropy = multi-broadcast (expected high for GPQA); "
+                           "low entropy = single-hop (expected low for Math). "
+                           "This proxy metric is based on the receiver_head_score distribution; "
+                           "for strict attention-matrix entropy, replace the m2 input.")
     }
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 5. Exp 2c — Causal Topology (Causal Reach Ratio + Anchor Position Distribution)
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def causal_reach_ratio(mat: np.ndarray, threshold_frac: float = 0.5) -> float:
     """
@@ -395,8 +406,7 @@ def anchor_locations(scores: np.ndarray, z_threshold: float = 1.0) -> list[float
     return [i / n for i, s in enumerate(scores) if (s - mu) / sigma > z_threshold]
 
 
-def exp2c_causal_topology(m1_gpqa: list, m1_math: list,
-                           m3_mat_gpqa: dict, m3_mat_math: dict) -> dict:
+def exp2c_causal_topology(m1_gpqa: list, m1_math: list, m3_mat_gpqa: dict, m3_mat_math: dict) -> dict:
     """Exp 2c: Causal Reach Ratio + Anchor Position Distribution"""
 
     # ── Causal Reach Ratio ──
@@ -440,8 +450,16 @@ def exp2c_causal_topology(m1_gpqa: list, m1_math: list,
 
     return {
         "causal_reach_ratio": {
-            "gpqa": {"values": rr_gpqa_clean, "mean": float(np.mean(rr_gpqa_clean)) if rr_gpqa_clean else None, "ci95": ci_rr_gpqa},
-            "math": {"values": rr_math_clean, "mean": float(np.mean(rr_math_clean)) if rr_math_clean else None, "ci95": ci_rr_math},
+            "gpqa": {
+                "values": rr_gpqa_clean,
+                "mean": float(np.mean(rr_gpqa_clean)) if rr_gpqa_clean else None,
+                "ci95": ci_rr_gpqa
+            },
+            "math": {
+                "values": rr_math_clean,
+                "mean": float(np.mean(rr_math_clean)) if rr_math_clean else None,
+                "ci95": ci_rr_math
+            },
             "permutation_p": p_rr,
             "cliffs_delta": d_rr,
             "effect_size": cliffs_delta_interp(d_rr),
@@ -469,6 +487,7 @@ def exp2c_causal_topology(m1_gpqa: list, m1_math: list,
 # 6. Exp 3 — Cross-Method Agreement
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def scores_to_ranks(scores: np.ndarray) -> np.ndarray:
     """Convert scores to ranks (higher score = lower rank = 1)"""
     return stats.rankdata(-scores)
@@ -483,8 +502,8 @@ def kendalls_w(rankings: np.ndarray) -> float:
     mean_rank = (n + 1) / 2
     # Sum of ranks per column
     col_sums = rankings.sum(axis=0)
-    S = np.sum((col_sums - k * mean_rank) ** 2)
-    W = 12 * S / (k ** 2 * (n ** 3 - n))
+    S = np.sum((col_sums - k * mean_rank)**2)
+    W = 12 * S / (k**2 * (n**3 - n))
     return float(np.clip(W, 0, 1))
 
 
@@ -499,8 +518,7 @@ def pairwise_kendall_tau(r1, r2, n_boot: int = 5000):
         t, _ = kendalltau(np.array(r1)[idx], np.array(r2)[idx])
         if not np.isnan(t):
             boot_taus.append(t)
-    ci = (float(np.quantile(boot_taus, 0.025)),
-          float(np.quantile(boot_taus, 0.975))) if boot_taus else (None, None)
+    ci = (float(np.quantile(boot_taus, 0.025)), float(np.quantile(boot_taus, 0.975))) if boot_taus else (None, None)
     return float(tau), float(p), ci
 
 
@@ -521,13 +539,11 @@ def topk_agreement(s1, s2, s3, k: int) -> dict:
         "pairwise_12": len(t1 & t2) / k,
         "pairwise_13": len(t1 & t3) / k,
         "pairwise_23": len(t2 & t3) / k,
-        "three_way":   len(t1 & t2 & t3) / k,
+        "three_way": len(t1 & t2 & t3) / k,
     }
 
 
-def align_three_methods(m1_problem: dict,
-                         m2_all: dict,
-                         m3_all: dict) -> tuple | None:
+def align_three_methods(m1_problem: dict, m2_all: dict, m3_all: dict) -> Optional[tuple]:
     """
     Align scores from the three methods on the same problem; returns (s1, s2, s3).
 
@@ -558,13 +574,11 @@ def align_three_methods(m1_problem: dict,
     return s1[:n], s2[:n], s3[:n]
 
 
-def exp3_method_agreement(m1: list, m2_all: dict, m3_all: dict,
-                           domain_label: str) -> dict:
+def exp3_method_agreement(m1: list, m2_all: dict, m3_all: dict, domain_label: str) -> dict:
     """Exp 3: Compute method-agreement metrics for a single domain"""
     Ws = []
     taus_12, taus_13, taus_23 = [], [], []
-    topk_results = {k: {"12": [], "13": [], "23": [], "3way": []}
-                    for k in [3, 5, 10]}
+    topk_results = {k: {"12": [], "13": [], "23": [], "3way": []} for k in [3, 5, 10]}
     n_valid = 0
 
     for prob in m1:
@@ -621,12 +635,27 @@ def exp3_method_agreement(m1: list, m2_all: dict, m3_all: dict,
             "ci95": bootstrap_ci(np.array(Ws)) if Ws else None,
         },
         "pairwise_tau": {
-            "m1_m2": {"mean": safe_mean(taus_12), "values": taus_12, "ci95": tau_ci(taus_12)},
-            "m1_m3": {"mean": safe_mean(taus_13), "values": taus_13, "ci95": tau_ci(taus_13)},
-            "m2_m3": {"mean": safe_mean(taus_23), "values": taus_23, "ci95": tau_ci(taus_23)},
+            "m1_m2": {
+                "mean": safe_mean(taus_12),
+                "values": taus_12,
+                "ci95": tau_ci(taus_12)
+            },
+            "m1_m3": {
+                "mean": safe_mean(taus_13),
+                "values": taus_13,
+                "ci95": tau_ci(taus_13)
+            },
+            "m2_m3": {
+                "mean": safe_mean(taus_23),
+                "values": taus_23,
+                "ci95": tau_ci(taus_23)
+            },
         },
         "topk_agreement": {
-            str(k): {key: safe_mean(vals) for key, vals in v.items()}
+            str(k): {
+                key: safe_mean(vals)
+                for key, vals in v.items()
+            }
             for k, v in topk_results.items()
         }
     }
@@ -659,7 +688,9 @@ def exp3_cross_domain_W(res_gpqa: dict, res_math: dict) -> dict:
 # 7. Print Summary
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def print_summary(results: dict):
+
     def fmt(v, digits=4):
         if v is None:
             return "N/A"
@@ -747,6 +778,7 @@ def print_summary(results: dict):
 # ──────────────────────────────────────────────────────────────────────────────
 # 8. Main Pipeline
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def main():
     print("Loading data...")
