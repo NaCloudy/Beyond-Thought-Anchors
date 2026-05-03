@@ -1,0 +1,182 @@
+[
+  {
+    "candidate": 7,
+    "correct_cot": 5,
+    "incorrect_cot": 8,
+    "domain": "biology",
+    "subdomain": "Genetics",
+    "reason": "5/10 acc, genetics/epigenetics; IC confuses answer selection despite long reasoning; only genetics candidate available",
+    "verified": true
+  },
+  {
+    "candidate": 127,
+    "correct_cot": 8,
+    "incorrect_cot": 6,
+    "domain": "biology",
+    "subdomain": "Molecular Biology",
+    "reason": "5/10 acc, gene sequence analysis; IC picks wrong plasmid due to misreading stop codons; both CoTs in ideal 140-183 chunk range",
+    "verified": true
+  },
+  {
+    "candidate": 96,
+    "correct_cot": 1,
+    "incorrect_cot": 4,
+    "domain": "biology",
+    "subdomain": "Molecular Biology",
+    "reason": "6/10 acc, molecular biology; both CoTs verified with clear answer fields; IC=94ch in good range",
+    "verified": true
+  },
+  {
+    "candidate": 43,
+    "correct_cot": 7,
+    "incorrect_cot": 3,
+    "domain": "biology",
+    "subdomain": "Molecular Biology",
+    "reason": "5/10 ideal accuracy; short but above threshold CoTs (66/52ch); diversifies biology pool",
+    "verified": true
+  },
+  {
+    "candidate": 106,
+    "correct_cot": 3,
+    "incorrect_cot": 2,
+    "domain": "biology",
+    "subdomain": "Molecular Biology",
+    "reason": "4/10 acc; molecular biology diversification; IC=45ch near lower bound but usable",
+    "verified": true
+  },
+  {
+    "candidate": 164,
+    "correct_cot": 9,
+    "incorrect_cot": 2,
+    "domain": "chemistry",
+    "subdomain": "General Chemistry",
+    "reason": "5/10 ideal acc; general chemistry coverage; verified with explicit answer fields; CC=204ch IC=144ch good for rollout",
+    "verified": true
+  },
+  {
+    "candidate": 148,
+    "correct_cot": 4,
+    "incorrect_cot": 6,
+    "domain": "chemistry",
+    "subdomain": "Organic Chemistry",
+    "reason": "5/10 acc; organic chemistry; clear reasoning error in IC; good chunk balance",
+    "verified": true
+  },
+  {
+    "candidate": 144,
+    "correct_cot": 3,
+    "incorrect_cot": 2,
+    "domain": "chemistry",
+    "subdomain": "Organic Chemistry",
+    "reason": "4/10 acc; organic chemistry; IC has substantive reasoning error; balanced CoT lengths",
+    "verified": true
+  },
+  {
+    "candidate": 185,
+    "correct_cot": 7,
+    "incorrect_cot": 1,
+    "domain": "chemistry",
+    "subdomain": "Organic Chemistry",
+    "reason": "5/10 acc; organic chemistry; IC misidentifies reaction product; good chunk range",
+    "verified": true
+  },
+  {
+    "candidate": 155,
+    "correct_cot": 3,
+    "incorrect_cot": 2,
+    "domain": "chemistry",
+    "subdomain": "Organic Chemistry",
+    "reason": "4/10 acc; longest CoTs (330/289ch); great for granular anchor analysis",
+    "verified": true
+  },
+  {
+    "candidate": 182,
+    "correct_cot": 1,
+    "incorrect_cot": 7,
+    "domain": "chemistry",
+    "subdomain": "General Chemistry",
+    "reason": "5/10 acc; general chemistry; IC has clear wrong conclusion; good diversity",
+    "verified": true
+  },
+  {
+    "candidate": 20,
+    "correct_cot": 5,
+    "incorrect_cot": 0,
+    "domain": "chemistry",
+    "subdomain": "Organic Chemistry",
+    "reason": "3/10 acc, hard organic problem; IC picks wrong product; CC=242ch IC=226ch balanced pair",
+    "verified": true
+  },
+  {
+    "candidate": 158,
+    "correct_cot": 6,
+    "incorrect_cot": 0,
+    "domain": "physics",
+    "subdomain": "Astrophysics",
+    "reason": "5/10 ideal acc; astrophysics coverage; CC=134ch IC=198ch; IC picks wrong answer C vs GT=A",
+    "verified": true
+  },
+  {
+    "candidate": 3,
+    "correct_cot": 8,
+    "incorrect_cot": 4,
+    "domain": "physics",
+    "subdomain": "Electromagnetism and Photonics",
+    "reason": "4/10 acc, Maxwell equations with monopoles; IC confuses which equations change; CC=101ch IC=94ch compact",
+    "verified": true
+  },
+  {
+    "candidate": 165,
+    "correct_cot": 0,
+    "incorrect_cot": 1,
+    "domain": "physics",
+    "subdomain": "High-energy particle physics",
+    "reason": "6/10 acc; only HEP candidate with clean verification; CC=103ch IC=136ch good range",
+    "verified": true
+  },
+  {
+    "candidate": 159,
+    "correct_cot": 4,
+    "incorrect_cot": 3,
+    "domain": "physics",
+    "subdomain": "Optics and Acoustics",
+    "reason": "4/10 acc; only optics candidate; IC=160ch with clear wrong conclusion; good for anchor analysis",
+    "verified": true
+  },
+  {
+    "candidate": 14,
+    "correct_cot": 0,
+    "incorrect_cot": 9,
+    "domain": "physics",
+    "subdomain": "Physics (general)",
+    "reason": "7/10 acc; general physics; both CoTs ~111/107ch compact and balanced; clean verification",
+    "verified": true
+  },
+  {
+    "candidate": 172,
+    "correct_cot": 4,
+    "incorrect_cot": 7,
+    "domain": "physics",
+    "subdomain": "Quantum Mechanics",
+    "reason": "5/10 ideal acc; QM problem; IC=191ch with clear reasoning error; good diversity",
+    "verified": true
+  },
+  {
+    "candidate": 178,
+    "correct_cot": 8,
+    "incorrect_cot": 5,
+    "domain": "physics",
+    "subdomain": "Quantum Mechanics",
+    "reason": "4/10 acc, matrix unitarity problem; IC wrongly concludes A (norm-preservation); CC=167ch IC=152ch balanced",
+    "verified": true
+  },
+  {
+    "candidate": 40,
+    "correct_cot": 8,
+    "incorrect_cot": 4,
+    "domain": "physics",
+    "subdomain": "Relativistic Mechanics",
+    "reason": "6/10 acc; IC misapplies velocity addition to light; CC=93ch IC=98ch compact; relativity coverage",
+    "verified": true
+  }
+]
