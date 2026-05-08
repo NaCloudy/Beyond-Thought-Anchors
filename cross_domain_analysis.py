@@ -1,14 +1,14 @@
 """
 cross_domain_analysis.py
 ========================
-Exp 2 (Cross-Domain Comparison) + Exp 3 (Method Agreement) 分析脚本
+Analysis script for Exp 2 (Cross-Domain Comparison) + Exp 3 (Method Agreement)
 
-输入数据：
-  - 方法一（黑盒重采样）：analysis/{domain}/correct_base_solution/analysis_results.json
-  - 方法二（Receiver Head）：csvs/{domain}/receiver_head_scores_correct_qwen-14b_k32_pi16.csv
-  - 方法三（因果遮蔽）：kl_results/{domain}/qwen-14b/correct/problem_{N}_kl.npy
+Input data:
+  - Method 1 (Black-box Resampling):  analysis/{domain}/correct_base_solution/analysis_results.json
+  - Method 2 (Receiver Head):         csvs/{domain}/receiver_head_scores_correct_qwen-14b_k32_pi16.csv
+  - Method 3 (Causal Masking):        kl_results/{domain}/qwen-14b/correct/problem_{N}_kl.npy
 
-输出：results/cross_domain_results.json  +  控制台打印摘要
+Output: results/cross_domain_results.json  +  console summary printout
 """
 
 import csv
@@ -23,7 +23,7 @@ from scipy import stats
 from scipy.stats import kendalltau, mannwhitneyu
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 路径配置（相对于本脚本所在目录）
+# Path configuration (relative to this script's directory)
 # ──────────────────────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BASE_DIR)
@@ -32,19 +32,19 @@ DOMAINS = ["gpqa", "math"]
 MODEL_NAME = "qwen-14b"
 REC_CSV_SUFFIX = f"receiver_head_scores_correct_{MODEL_NAME}_k32_pi16.csv"
 
-SENTINEL = -20.72326584  # KL 矩阵上三角填充的哨兵值
+SENTINEL = -20.72326584  # Sentinel value used to fill the upper triangle of the KL matrix
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 1. 数据加载
+# 1. Data Loading
 # ──────────────────────────────────────────────────────────────────────────────
 
 def load_method1(domain: str) -> list[dict]:
     """
-    返回 per-problem 数据列表，每项：
+    Returns a per-problem data list, where each item is:
       {
         'problem_id': str,
-        'scores': list[float],   # counterfactual_importance_kl，每个 chunk 一个
+        'scores': list[float],   # counterfactual_importance_kl, one per chunk
         'tags':   list[list[str]],
         'n': int
       }
@@ -66,7 +66,7 @@ def load_method1(domain: str) -> list[dict]:
 
 def load_method2(domain: str) -> dict[str, list[float]]:
     """
-    返回 {problem_id: [receiver_head_score, ...]} （按 sentence_idx 排序）
+    Returns {problem_id: [receiver_head_score, ...]} (sorted by sentence_idx)
     """
     path = os.path.join(BASE_DIR, "csvs", domain, REC_CSV_SUFFIX)
     result: dict[str, list] = defaultdict(list)
@@ -76,19 +76,19 @@ def load_method2(domain: str) -> dict[str, list[float]]:
             pid = str(row["problem_number"])
             sidx = int(row["sentence_idx"])
             raw = row["receiver_head_score"]
-            score = float(raw) if raw.strip() else 0.0  # post-convergence 行为空
+            score = float(raw) if raw.strip() else 0.0  # post-convergence rows are empty
             result[pid].append((sidx, score))
 
-    # 按 sentence_idx 排序，返回纯分数列表
+    # Sort by sentence_idx and return pure score lists
     return {pid: [s for _, s in sorted(v)] for pid, v in result.items()}
 
 
 def load_method3(domain: str) -> dict[str, np.ndarray]:
     """
-    返回 {problem_id: per_sentence_causal_score (1D array)}
+    Returns {problem_id: per_sentence_causal_score (1D array)}
 
-    per-sentence score = 该句对所有后续句 KL 影响的均值
-    （即 KL 矩阵第 i 列中 j > i 部分的均值；哨兵值排除）
+    per-sentence score = mean KL impact of this sentence on all subsequent sentences
+    (i.e., mean of column i in the KL matrix over the j > i portion; sentinel values excluded)
     """
     kl_dir = os.path.join(BASE_DIR, "kl_results", domain, MODEL_NAME, "correct")
     result = {}
@@ -100,8 +100,8 @@ def load_method3(domain: str) -> dict[str, np.ndarray]:
         N = mat.shape[0]
         scores = []
         for i in range(N):
-            col = mat[i + 1:, i]  # 第 i 列，仅 j > i 部分
-            # 排除哨兵值（上三角填充）
+            col = mat[i + 1:, i]  # column i, only the j > i portion
+            # Exclude sentinel values (upper triangle padding)
             valid = col[col > SENTINEL + 1]
             scores.append(float(valid.mean()) if len(valid) > 0 else 0.0)
         result[pid] = np.array(scores)
@@ -109,7 +109,7 @@ def load_method3(domain: str) -> dict[str, np.ndarray]:
 
 
 def load_method3_matrix(domain: str) -> dict[str, np.ndarray]:
-    """返回 {problem_id: raw KL matrix (N×N)}，用于 Exp 2c 因果拓扑分析"""
+    """Returns {problem_id: raw KL matrix (N×N)}, used for Exp 2c causal topology analysis"""
     kl_dir = os.path.join(BASE_DIR, "kl_results", domain, MODEL_NAME, "correct")
     result = {}
     for fname in os.listdir(kl_dir):
@@ -121,13 +121,13 @@ def load_method3_matrix(domain: str) -> dict[str, np.ndarray]:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 2. 统计工具函数
+# 2. Statistical Utility Functions
 # ──────────────────────────────────────────────────────────────────────────────
 
 def gini(scores: list[float]) -> float:
-    """计算 Gini 系数（0 = 完全均等，1 = 完全集中）"""
+    """Compute the Gini coefficient (0 = perfectly equal, 1 = perfectly concentrated)"""
     arr = np.array(scores, dtype=float)
-    arr = arr - arr.min()  # 确保非负
+    arr = arr - arr.min()  # ensure non-negative
     if arr.sum() == 0:
         return 0.0
     arr = np.sort(arr)
@@ -137,11 +137,11 @@ def gini(scores: list[float]) -> float:
 
 
 def jsd(p: np.ndarray, q: np.ndarray) -> float:
-    """Jensen-Shannon Divergence（log2，范围 [0,1]）"""
+    """Jensen-Shannon Divergence (log2, range [0, 1])"""
     p = p / p.sum()
     q = q / q.sum()
     m = (p + q) / 2
-    # 避免 log(0)
+    # Avoid log(0)
     with np.errstate(divide="ignore", invalid="ignore"):
         kl_pm = np.where(p > 0, p * np.log2(p / m), 0.0)
         kl_qm = np.where(q > 0, q * np.log2(q / m), 0.0)
@@ -150,7 +150,7 @@ def jsd(p: np.ndarray, q: np.ndarray) -> float:
 
 def permutation_test_2samp(a: np.ndarray, b: np.ndarray,
                             n_perm: int = 10000) -> float:
-    """双样本置换检验，返回 p 值（双尾）"""
+    """Two-sample permutation test, returns p-value (two-tailed)"""
     a, b = np.array(a), np.array(b)
     obs = abs(a.mean() - b.mean())
     combined = np.concatenate([a, b])
@@ -166,7 +166,7 @@ def permutation_test_2samp(a: np.ndarray, b: np.ndarray,
 
 
 def cliffs_delta(a: np.ndarray, b: np.ndarray) -> float:
-    """Cliff's delta（非参数效应量，范围 [-1, 1]）"""
+    """Cliff's delta (non-parametric effect size, range [-1, 1])"""
     a, b = np.array(a), np.array(b)
     n = len(a) * len(b)
     dom = sum(1 for x in a for y in b if x > y) - sum(1 for x in a for y in b if x < y)
@@ -175,7 +175,7 @@ def cliffs_delta(a: np.ndarray, b: np.ndarray) -> float:
 
 def bootstrap_ci(values: np.ndarray, func=np.mean,
                  n_boot: int = 5000, ci: float = 0.95) -> tuple[float, float]:
-    """Bootstrap 置信区间"""
+    """Bootstrap confidence interval"""
     rng = np.random.default_rng(42)
     boot_stats = [func(rng.choice(values, size=len(values), replace=True))
                   for _ in range(n_boot)]
@@ -186,7 +186,7 @@ def bootstrap_ci(values: np.ndarray, func=np.mean,
 
 def bootstrap_jsd_ci(tags_a: list[str], tags_b: list[str],
                      all_labels: list[str], n_boot: int = 5000) -> tuple[float, float]:
-    """对 JSD 做 bootstrap CI（对 chunk 标签列表重采样）"""
+    """Bootstrap CI for JSD (resamples chunk tag lists)"""
     rng = np.random.default_rng(42)
     jsds = []
     for _ in range(n_boot):
@@ -211,7 +211,7 @@ def cliffs_delta_interp(d: float) -> str:
 
 
 def shannon_entropy(dist: np.ndarray) -> float:
-    """Shannon 熵（以 bit 为单位）"""
+    """Shannon entropy (in bits)"""
     dist = np.array(dist, dtype=float)
     dist = dist[dist > 0]
     if len(dist) == 0:
@@ -221,7 +221,7 @@ def shannon_entropy(dist: np.ndarray) -> float:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 3. Exp 2a — 类别分布（Gini + JSD）
+# 3. Exp 2a — Category Distribution (Gini + JSD)
 # ──────────────────────────────────────────────────────────────────────────────
 
 ALL_LABELS = ["problem_setup", "plan_generation", "active_computation",
@@ -230,12 +230,12 @@ ALL_LABELS = ["problem_setup", "plan_generation", "active_computation",
 
 
 def normalize_tag(tag: str) -> str:
-    """统一标签格式（下划线分隔）"""
+    """Normalize tag format (underscore-separated)"""
     return tag.lower().replace(" ", "_").replace("-", "_")
 
 
 def exp2a_gini_jsd(m1_gpqa: list, m1_math: list) -> dict:
-    """Exp 2a: Gini 系数 + JSD"""
+    """Exp 2a: Gini coefficient + JSD"""
 
     # ── Gini per problem ──
     gini_gpqa = [gini(p["scores"]) for p in m1_gpqa]
@@ -286,26 +286,28 @@ def exp2a_gini_jsd(m1_gpqa: list, m1_math: list) -> dict:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 4. Exp 2b — 注意力熵（Receiver Head 分数分布的 Shannon 熵）
+# 4. Exp 2b — Attention Entropy (Shannon entropy of receiver-head score distribution)
 # ──────────────────────────────────────────────────────────────────────────────
 
 def exp2b_attention_entropy(m2_gpqa: dict, m2_math: dict,
                              m1_gpqa: list, m1_math: list) -> dict:
     """
-    Exp 2b：注意力熵
+    Exp 2b: Attention Entropy
 
-    代理指标：将 receiver_head_score 在问题内的分布视为"注意力分布"，
-    计算其 Shannon 熵。高熵 = 多播（多个句子均等重要），
-    低熵 = 单跳（少数句子集中吸引注意力）。
+    Proxy metric: treat the within-problem distribution of receiver_head_score
+    as an "attention distribution" and compute its Shannon entropy.
+    High entropy = multi-broadcast (multiple sentences equally important);
+    low entropy  = single-hop  (a few sentences concentrate attention).
 
-    Note: 若后续有原始注意力矩阵，可替换此计算。
+    Note: If raw attention matrices become available later, this computation
+    can be replaced.
     """
     def problem_entropy(scores: list[float]) -> float:
         arr = np.array(scores, dtype=float)
-        arr = arr - arr.min() + 1e-9  # 非负化
+        arr = arr - arr.min() + 1e-9  # make non-negative
         return shannon_entropy(arr)
 
-    # 按 problem_id 对齐
+    # Align by problem_id
     def entropies_for_domain(m2: dict, m1: list) -> list[float]:
         ents = []
         for p in m1:
@@ -329,25 +331,29 @@ def exp2b_attention_entropy(m2_gpqa: dict, m2_math: dict,
         "cliffs_delta": d_val,
         "effect_size": cliffs_delta_interp(d_val),
         "interpretation": (
-            "高熵=多播(GPQA预期高)，低熵=单跳(Math预期低)。"
-            "此代理指标基于 receiver_head_score 分布；若需严格注意力矩阵熵，替换 m2 输入。"
+            "High entropy = multi-broadcast (expected high for GPQA); "
+            "low entropy = single-hop (expected low for Math). "
+            "This proxy metric is based on the receiver_head_score distribution; "
+            "for strict attention-matrix entropy, replace the m2 input."
         )
     }
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 5. Exp 2c — 因果拓扑（Causal Reach Ratio + Anchor 位置分布）
+# 5. Exp 2c — Causal Topology (Causal Reach Ratio + Anchor Position Distribution)
 # ──────────────────────────────────────────────────────────────────────────────
 
 def causal_reach_ratio(mat: np.ndarray, threshold_frac: float = 0.5) -> float:
     """
-    因果到达比 = 远程影响总量 / 近程影响总量
+    Causal Reach Ratio = total long-range impact / total short-range impact
 
-    对 KL 矩阵下三角（i < j，即句子 i 对后续句子 j 的影响）：
-    - 距离 d = j - i
-    - 阈值 = ceil(链长 × threshold_frac)
-    - 远程：d > threshold；近程：d <= threshold
-    排除哨兵值，仅统计有效影响。
+    For the lower triangle of the KL matrix (i < j, i.e., the influence of
+    sentence i on subsequent sentence j):
+      - distance d = j - i
+      - threshold = ceil(chain_length × threshold_frac)
+      - long-range:  d > threshold
+      - short-range: d <= threshold
+    Sentinel values are excluded; only valid impacts are counted.
     """
     N = mat.shape[0]
     threshold = max(1, int(N * threshold_frac))
@@ -360,8 +366,9 @@ def causal_reach_ratio(mat: np.ndarray, threshold_frac: float = 0.5) -> float:
             val = mat[j, i]
             if val <= SENTINEL + 1:
                 continue
-            # 有效影响（log-KL），转为正数（取 exp 或直接用 shifted 值）
-            effective = val - SENTINEL  # 相对强度（正值越大=影响越大）
+            # Valid impact (log-KL), converted to a positive number
+            # (via exp or directly using the shifted value)
+            effective = val - SENTINEL  # relative magnitude (larger positive = stronger impact)
             if j - i > threshold:
                 far_sum += effective
             else:
@@ -374,9 +381,10 @@ def causal_reach_ratio(mat: np.ndarray, threshold_frac: float = 0.5) -> float:
 
 def anchor_locations(scores: np.ndarray, z_threshold: float = 1.0) -> list[float]:
     """
-    识别 anchor 句子并返回其归一化位置 (position / chain_length)
+    Identify anchor sentences and return their normalized positions
+    (position / chain_length).
 
-    anchor 定义：z-score > z_threshold
+    Anchor definition: z-score > z_threshold
     """
     if len(scores) == 0:
         return []
@@ -389,7 +397,7 @@ def anchor_locations(scores: np.ndarray, z_threshold: float = 1.0) -> list[float
 
 def exp2c_causal_topology(m1_gpqa: list, m1_math: list,
                            m3_mat_gpqa: dict, m3_mat_math: dict) -> dict:
-    """Exp 2c: Causal Reach Ratio + Anchor 位置分布"""
+    """Exp 2c: Causal Reach Ratio + Anchor Position Distribution"""
 
     # ── Causal Reach Ratio ──
     def reach_ratios(m3_mats: dict, m1: list) -> list[float]:
@@ -404,7 +412,7 @@ def exp2c_causal_topology(m1_gpqa: list, m1_math: list,
     rr_gpqa = reach_ratios(m3_mat_gpqa, m1_gpqa)
     rr_math = reach_ratios(m3_mat_math, m1_math)
 
-    # 去除 inf（全部影响都是近程时出现）
+    # Remove inf (occurs when all influence is short-range)
     rr_gpqa_clean = [r for r in rr_gpqa if np.isfinite(r)]
     rr_math_clean = [r for r in rr_math if np.isfinite(r)]
 
@@ -413,7 +421,7 @@ def exp2c_causal_topology(m1_gpqa: list, m1_math: list,
     ci_rr_gpqa = bootstrap_ci(np.array(rr_gpqa_clean))
     ci_rr_math = bootstrap_ci(np.array(rr_math_clean))
 
-    # ── Anchor 位置分布 ──
+    # ── Anchor location distribution ──
     def all_anchor_locs(m1: list) -> np.ndarray:
         locs = []
         for p in m1:
@@ -458,22 +466,22 @@ def exp2c_causal_topology(m1_gpqa: list, m1_math: list,
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 6. Exp 3 — 跨方法一致性
+# 6. Exp 3 — Cross-Method Agreement
 # ──────────────────────────────────────────────────────────────────────────────
 
 def scores_to_ranks(scores: np.ndarray) -> np.ndarray:
-    """分数转排名（高分=低排名=1）"""
+    """Convert scores to ranks (higher score = lower rank = 1)"""
     return stats.rankdata(-scores)
 
 
 def kendalls_w(rankings: np.ndarray) -> float:
     """
-    Kendall's W（concordance coefficient）
-    rankings: shape (k, n) — k 个方法，n 个 items
+    Kendall's W (concordance coefficient)
+    rankings: shape (k, n) — k methods, n items
     """
     k, n = rankings.shape
     mean_rank = (n + 1) / 2
-    # 每列排名之和
+    # Sum of ranks per column
     col_sums = rankings.sum(axis=0)
     S = np.sum((col_sums - k * mean_rank) ** 2)
     W = 12 * S / (k ** 2 * (n ** 3 - n))
@@ -481,7 +489,7 @@ def kendalls_w(rankings: np.ndarray) -> float:
 
 
 def pairwise_kendall_tau(r1, r2, n_boot: int = 5000):
-    """计算两个排名序列的 Kendall's τ + bootstrap CI"""
+    """Compute Kendall's τ + bootstrap CI for two ranking sequences"""
     tau, p = kendalltau(r1, r2)
     rng = np.random.default_rng(42)
     boot_taus = []
@@ -498,11 +506,11 @@ def pairwise_kendall_tau(r1, r2, n_boot: int = 5000):
 
 def topk_agreement(s1, s2, s3, k: int) -> dict:
     """
-    Top-k 集合重叠率
+    Top-k set overlap rate
 
-    返回：
-      pairwise_12, pairwise_13, pairwise_23: 两两重叠率
-      three_way: 三方同时 top-k 的比例
+    Returns:
+      pairwise_12, pairwise_13, pairwise_23: pairwise overlap rates
+      three_way: proportion of items that appear in all three top-k sets
     """
     n = len(s1)
     k = min(k, n)
@@ -521,15 +529,15 @@ def align_three_methods(m1_problem: dict,
                          m2_all: dict,
                          m3_all: dict) -> tuple | None:
     """
-    对齐三种方法在同一个问题上的分数，返回 (s1, s2, s3)
+    Align scores from the three methods on the same problem; returns (s1, s2, s3).
 
-    对齐策略：
-    - 方法一有 N 个 chunk
-    - 方法二有 N-1 个句子（不含最后一句）
-    - 方法三有 N-1 个 causal score（KL 矩阵大小 N-1）
-    → 取前 min(len1-1, len2, len3) 个位置
+    Alignment strategy:
+    - Method 1 has N chunks
+    - Method 2 has N-1 sentences (excluding the last sentence)
+    - Method 3 has N-1 causal scores (KL matrix size N-1)
+    → Take the first min(len1-1, len2, len3) positions
 
-    返回 None 如果任何方法数据缺失。
+    Returns None if any method's data is missing.
     """
     pid = m1_problem["problem_id"]
     s1 = np.array(m1_problem["scores"])
@@ -542,7 +550,7 @@ def align_three_methods(m1_problem: dict,
         return None
     s3 = m3_all[pid]
 
-    # 对齐长度：方法一去掉最后一句（与方法二三对齐）
+    # Aligned length: drop method 1's last sentence (to align with methods 2 and 3)
     n = min(len(s1) - 1, len(s2), len(s3))
     if n < 3:
         return None
@@ -552,7 +560,7 @@ def align_three_methods(m1_problem: dict,
 
 def exp3_method_agreement(m1: list, m2_all: dict, m3_all: dict,
                            domain_label: str) -> dict:
-    """Exp 3：对单个域计算方法一致性指标"""
+    """Exp 3: Compute method-agreement metrics for a single domain"""
     Ws = []
     taus_12, taus_13, taus_23 = [], [], []
     topk_results = {k: {"12": [], "13": [], "23": [], "3way": []}
@@ -574,7 +582,7 @@ def exp3_method_agreement(m1: list, m2_all: dict, m3_all: dict,
         W = kendalls_w(np.stack([r1, r2, r3]))
         Ws.append(W)
 
-        # Pairwise τ（仅点估计，bootstrap 在汇总后做）
+        # Pairwise τ (point estimates only; bootstrap is done after aggregation)
         tau12, _, _ = pairwise_kendall_tau(r1, r2, n_boot=0)
         tau13, _, _ = pairwise_kendall_tau(r1, r3, n_boot=0)
         tau23, _, _ = pairwise_kendall_tau(r2, r3, n_boot=0)
@@ -625,7 +633,7 @@ def exp3_method_agreement(m1: list, m2_all: dict, m3_all: dict,
 
 
 def exp3_cross_domain_W(res_gpqa: dict, res_math: dict) -> dict:
-    """Exp 3：比较两域的 Kendall's W（Mann-Whitney U + Cliff's delta）"""
+    """Exp 3: Compare Kendall's W between two domains (Mann-Whitney U + Cliff's delta)"""
     Ws_gpqa = res_gpqa["kendalls_W"]["values"]
     Ws_math = res_math["kendalls_W"]["values"]
 
@@ -634,7 +642,7 @@ def exp3_cross_domain_W(res_gpqa: dict, res_math: dict) -> dict:
 
     mw_stat, mw_p = mannwhitneyu(Ws_gpqa, Ws_math, alternative="two-sided")
     d = cliffs_delta(np.array(Ws_gpqa), np.array(Ws_math))
-    ci_diff = bootstrap_ci(np.array(Ws_gpqa) - np.mean(Ws_math))  # 粗略差异 CI
+    ci_diff = bootstrap_ci(np.array(Ws_gpqa) - np.mean(Ws_math))  # approximate difference CI
 
     return {
         "mann_whitney_u": float(mw_stat),
@@ -648,7 +656,7 @@ def exp3_cross_domain_W(res_gpqa: dict, res_math: dict) -> dict:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 7. 打印摘要
+# 7. Print Summary
 # ──────────────────────────────────────────────────────────────────────────────
 
 def print_summary(results: dict):
@@ -737,7 +745,7 @@ def print_summary(results: dict):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 8. 主流程
+# 8. Main Pipeline
 # ──────────────────────────────────────────────────────────────────────────────
 
 def main():
@@ -785,7 +793,7 @@ def main():
         }
     }
 
-    # ── 保存结果 ──
+    # ── Save results ──
     out_dir = os.path.join(BASE_DIR, "results")
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, "cross_domain_results.json")
@@ -793,7 +801,7 @@ def main():
         json.dump(results, f, indent=2, ensure_ascii=False, default=str)
     print(f"Results saved to {out_path}")
 
-    # ── 打印摘要 ──
+    # ── Print summary ──
     print_summary(results)
 
 
