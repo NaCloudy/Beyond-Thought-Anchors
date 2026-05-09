@@ -47,8 +47,6 @@ exp2a
     └── label_freq_math: dict     # Frequency of 8 categories in Math
 ```
 
-**Current results**: Gini shows no significant difference (p = 0.48, delta = 0.11); JSD = 0.095, driven primarily by `plan_generation` (Math 11.6% vs GPQA 1.1%), `self_checking` (Math 8.4% vs GPQA 0.6%), and `uncertainty_management` (GPQA 29.0% vs Math 11.8%).
-
 ### `exp2b`
 
 ```
@@ -61,8 +59,7 @@ exp2b
 └── interpretation: str           # Metric description (proxy metric note)
 ```
 
-**Metric description**: Uses the Shannon entropy of per-problem `receiver_head_score` distributions as a proxy for attention concentration. High entropy = multi-broadcast (attention spread across many sentences); low entropy = single-hop (few sentences dominate).  
-**Current results**: GPQA entropy is slightly higher (6.24 vs 6.05), but the difference is not significant (p = 0.35, delta = 0.13). Treated as a null result.
+**Metric description**: Uses the Shannon entropy of per-problem `receiver_head_score` distributions as a proxy for attention concentration. High entropy = multi-broadcast (attention spread across many sentences); low entropy = single-hop (few sentences dominate).
 
 ### `exp2c`
 
@@ -82,11 +79,6 @@ exp2c
     ├── mann_whitney_u, mann_whitney_p
     ├── cliffs_delta, effect_size
 ```
-
-**Current results**:
-
-- Causal reach ratio: no significant difference (p = 0.47, delta = -0.02). Null result.
-- **Anchor position**: GPQA anchors appear significantly later (mean = 0.36 vs Math 0.28), p = 0.0009, delta = 0.18 (small) -- the strongest cross-domain difference across all Exp 2 metrics.
 
 ### `exp3`
 
@@ -116,17 +108,3 @@ exp3
 ```
 
 **Method mapping**: `m1` = Method 1 (CF-KL, black-box resampling), `m2` = Method 2 (receiver head score), `m3` = Method 3 (causal masking, fixed k=3 forward window mean)
-
-**Current results**:
-
-- Kendall's W: MATH 0.346, GPQA 0.332 -- moderate three-way concordance in both domains
-- M1 vs M2 (black-box vs receiver head): most consistent pair, tau = +0.102 (MATH), +0.141 (GPQA); CIs exclude zero in both domains
-- M1 vs M3 (black-box vs causal masking): weakly positive on MATH (tau = +0.046, CI [0.007, 0.082]) but non-significant on GPQA (tau = -0.019, CI crosses zero)
-- M2 vs M3: uncorrelated in both domains (CIs cross zero)
-- Cross-domain W: no significant difference (p = 0.84, delta = 0.04) -- method agreement levels are comparable across domains
-
----
-
-## `simple_results.md`
-
-Five-line summary of core findings for quick reference. Can be cited directly when writing the report.

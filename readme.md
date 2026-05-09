@@ -78,7 +78,8 @@ Beyond-Thought-Anchors/
 |-- csvs/                             # Method 2 receiver-head CSV outputs
 |-- kl_results/                       # Method 3 KL matrices
 |-- plots/                            # Generated figures
-`-- results/                          # Final cross-domain analysis outputs
+`-- results/                          # Final cross-domain analysis outputs and documentation
+    `-- README.md                     # Schema and metric notes for Exp 2/3 results
 ```
 
 Generated artifact directories are intentionally treated as local experiment outputs. They can be regenerated from the scripts and notebooks below.
@@ -270,18 +271,16 @@ Output:
 results/cross_domain_results.json
 ```
 
-The script also prints a console summary.
+The script also prints a console summary. Detailed result schema and metric definitions live in `results/README.md`.
 
-### Result Schema
+At a high level, the output contains four experiment blocks:
 
-`results/cross_domain_results.json` has four main blocks:
-
-| Key     | Experiment        | Contents                                                                                                               |
-| ------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `exp2a` | Category profile  | Gini coefficient over sentence-category importance and Jensen-Shannon divergence between domain category distributions |
-| `exp2b` | Attention entropy | Shannon entropy of receiver-head score distributions                                                                   |
-| `exp2c` | Causal topology   | Long-range vs. short-range causal reach ratio and normalized anchor positions                                          |
-| `exp3`  | Method agreement  | Kendall's W, pairwise Kendall's tau, top-k overlap, and cross-domain W comparison                                      |
+| Key     | Experiment        | Contents                            |
+| ------- | ----------------- | ----------------------------------- |
+| `exp2a` | Category profile  | Gini coefficient and JSD            |
+| `exp2b` | Attention entropy | Receiver-head score entropy         |
+| `exp2c` | Causal topology   | Causal reach ratio and anchor shift |
+| `exp3`  | Method agreement  | Kendall's W, tau, and top-k overlap |
 
 Method names in `exp3`:
 
