@@ -2,7 +2,7 @@
 
 Code for reproducing and analyzing thought anchors in large language model reasoning across MATH and GPQA Diamond.
 
-This repository extends the _Thought Anchors_ framework from math reasoning to science question answering. It reproduces the three original analysis methods on MATH, runs the same three methods on GPQA Diamond, and provides a shared statistical pipeline for comparing domains and methods.
+This repository extends the _Thought Anchors_ framework from math reasoning to science question answering. It reproduces the original MATH workflow, adds GPQA Diamond rollout generation and analysis through three analysis methods, and provides a shared statistical pipeline for comparing domains and methods.
 
 The completed project uses **GPQA Diamond**, not FOLIO. The final experiments and analysis are MATH vs. GPQA.
 
@@ -32,7 +32,7 @@ Beyond-Thought-Anchors/
 |-- LICENSE.md
 |-- requirements.txt
 |
-|-- generate_rollouts.py              # Method 1: MATH base solutions and counterfactual rollouts
+|-- generate_rollouts.py              # Method 1: original MATH rollout generation script
 |-- analyze_rollouts.py               # Method 1: label chunks and compute importance metrics
 |-- step_attribution.py               # Method 1: sentence-to-sentence attribution matrix
 |-- plots.py                          # Method 1 plotting utilities
@@ -41,7 +41,7 @@ Beyond-Thought-Anchors/
 |-- reproduce.ipynb                   # Reproduce Methods 2 and 3 on MATH and GPQA
 |-- cross_domain_analysis.py          # Final Exp 2/3 cross-domain and cross-method analysis
 |
-|-- gpqa_pilot.ipynb                  # GPQA screening notebook
+|-- gpqa_pilot.ipynb                  # GPQA screening and rollout generation notebook
 |-- gpqa_20_candidates.json           # Selected GPQA Diamond subset
 |-- math_selected_problems.json       # Selected MATH subset
 |
@@ -102,7 +102,7 @@ FIREWORKS_API_KEY=...
 OPENROUTER_API_KEY=...
 ```
 
-`generate_rollouts.py` supports API providers and local inference. Methods 2 and 3 require local GPU execution with the Qwen-14B distilled reasoning model. The notebook uses a separate Hugging Face cache path on larger disks when running on cloud machines.
+`generate_rollouts.py` supports API providers and local inference for the original MATH workflow. GPQA rollout generation is handled in `gpqa_pilot.ipynb`. Methods 2 and 3 require local GPU execution with the Qwen-14B distilled reasoning model. The notebook uses a separate Hugging Face cache path on larger disks when running on cloud machines.
 
 ## Data
 
@@ -111,13 +111,13 @@ The final experiments use two 20-problem subsets:
 - MATH: selected problems stored in `math_selected_problems.json`
 - GPQA Diamond: selected candidate questions stored in `gpqa_20_candidates.json`
 
-`gpqa_pilot.ipynb` documents the GPQA screening workflow. If you only want to reproduce the final experiments, use the committed selection files directly.
+`gpqa_pilot.ipynb` documents the GPQA-Diamond workflow: dataset loading, screening, selected-candidate verification, and Thought-Anchor rollout generation for GPQA. If you only want to reproduce the final experiments, use the committed selection files directly.
 
 ## Method 1: Black-Box Resampling
 
 Method 1 generates a base chain of thought, chunks it into sentence-level steps, resamples downstream reasoning after each step, and measures how much final-answer behavior changes.
 
-The checked-in rollout generator is MATH-oriented: it loads problems through `load_math_problems` in `utils.py`. Generate a small MATH rollout run with:
+The checked-in Python rollout generator is the original MATH-oriented script: it loads problems through `load_math_problems` in `utils.py`. Generate a small MATH rollout run with:
 
 ```bash
 python generate_rollouts.py \
@@ -134,7 +134,7 @@ python generate_rollouts.py \
 
 Generate incorrect-base and forced-answer variants as needed by changing `-b` and `-r`.
 
-For the final cross-domain analysis, GPQA Method 1 artifacts must follow the same analyzed-output schema under `analysis/gpqa/correct_base_solution/`. The final comparison script consumes the analyzed JSON and does not require rollout generation to be rerun.
+For GPQA, use `gpqa_pilot.ipynb`. It screens GPQA-Diamond candidates, verifies selected correct/incorrect CoTs from `gpqa_20_candidates.json`, and generates GPQA Thought-Anchor rollouts under the GPQA rollout layout. For the final cross-domain analysis, GPQA Method 1 artifacts must follow the same analyzed-output schema under `analysis/gpqa/correct_base_solution/`. The final comparison script consumes the analyzed JSON and does not require rollout generation to be rerun.
 
 Analyze rollout outputs:
 
