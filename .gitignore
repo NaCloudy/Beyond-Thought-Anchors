@@ -1,6 +1,5 @@
 .gitignore
 *.pkl
-*.json
 *.zip
 *.png
 *.npy
