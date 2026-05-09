@@ -2,7 +2,7 @@
 
 Code for reproducing and analyzing thought anchors in large language model reasoning across MATH and GPQA Diamond.
 
-This repository extends the _Thought Anchors_ framework from math reasoning to science question answering. It reproduces the three original analysis methods on MATH, runs the same white-box methods on GPQA Diamond, and provides a shared statistical pipeline for comparing domains and methods.
+This repository extends the _Thought Anchors_ framework from math reasoning to science question answering. It reproduces the three original analysis methods on MATH, runs the same three methods on GPQA Diamond, and provides a shared statistical pipeline for comparing domains and methods.
 
 The completed project uses **GPQA Diamond**, not FOLIO. The final experiments and analysis are MATH vs. GPQA.
 
