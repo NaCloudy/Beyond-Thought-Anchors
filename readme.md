@@ -1,5 +1,5 @@
 # Beyond Thought Anchors
-**Consistency and Causal Analysis of LLM Reasoning Steps**
+Beyond Thought Anchors: Cross-Domain and Cross-Method Analysis of LLM Reasoning Steps
 
 > **CS639 Deep Learning for NLP — Course Project**
 > 
